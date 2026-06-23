@@ -14,11 +14,15 @@ _job_queue: "queue.Queue[str]" = queue.Queue()
 _started = False
 _start_lock = threading.Lock()
 
+# Thumbnails are stored next to the media file with the same job-id prefix; we
+# tell them apart from the actual media by extension.
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
-def enqueue(url: str) -> str:
+
+def enqueue(url: str, category: str = "video") -> str:
     """Register a new download and hand it to the worker."""
     job_id = uuid.uuid4().hex[:12]
-    db.create_video(job_id, url)
+    db.create_video(job_id, url, category)
     _job_queue.put(job_id)
     return job_id
 
@@ -69,67 +73,101 @@ def _progress_hook(job_id: str):
     return hook
 
 
-def _run_job(job_id: str) -> None:
-    video = db.get_video(job_id)
-    if not video:
-        return
-
-    db.update_video(job_id, status="downloading", progress=0, error=None)
-    settings.media_dir.mkdir(parents=True, exist_ok=True)
-
-    ydl_opts = {
+def _build_opts(job_id: str, category: str) -> dict:
+    """yt-dlp options for this category. Music/podcast -> audio-only; video ->
+    full video. Always grab the thumbnail and normalise it to .jpg for the
+    gallery."""
+    opts = {
         "outtmpl": str(settings.media_dir / f"{job_id}.%(ext)s"),
-        "format": settings.ytdlp_format,
-        "merge_output_format": settings.merge_format,
         "noplaylist": True,
         "continuedl": True,
         "quiet": True,
         "no_warnings": True,
+        "writethumbnail": True,
         "progress_hooks": [_progress_hook(job_id)],
+        "postprocessors": [],
     }
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    if category in ("music", "podcast"):
+        opts["format"] = "bestaudio/best"
+        opts["postprocessors"].append({
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": settings.audio_format,
+            "preferredquality": "0",  # best VBR
+        })
+    else:
+        opts["format"] = settings.ytdlp_format
+        opts["merge_output_format"] = settings.merge_format
+
+    # Convert whatever thumbnail YouTube serves (often .webp) to a .jpg.
+    opts["postprocessors"].append({
+        "key": "FFmpegThumbnailsConvertor",
+        "format": "jpg",
+    })
+    return opts
+
+
+def _run_job(job_id: str) -> None:
+    video = db.get_video(job_id)
+    if not video:
+        return
+    category = video.get("category") or "video"
+
+    db.update_video(job_id, status="downloading", progress=0, error=None)
+    settings.media_dir.mkdir(parents=True, exist_ok=True)
+
+    with yt_dlp.YoutubeDL(_build_opts(job_id, category)) as ydl:
         info = ydl.extract_info(video["url"], download=True)
 
-    filepath = _resolve_filepath(job_id, info)
-    if not filepath or not filepath.exists():
+    filepath = _resolve_media(job_id)
+    if not filepath:
         db.update_video(job_id, status="error", error="Download produced no file")
         return
 
+    thumb = _resolve_thumbnail(job_id)
     size = filepath.stat().st_size
     db.update_video(
         job_id,
         status="done",
         progress=100,
         filename=filepath.name,
+        thumbnail=thumb.name if thumb else None,
         bytes=size,
         title=info.get("title"),
         duration=int(info.get("duration") or 0),
         finished_at=time.time(),
     )
 
-    # Enforce the cap (FIFO), but never evict the video we just downloaded.
+    # Enforce the cap (FIFO), but never evict the item we just downloaded.
     storage.evict_to_fit(protect_id=job_id)
     if storage.used_bytes() > settings.max_bytes:
-        # The single video alone is larger than the whole budget -> reject it.
+        # The single item alone is larger than the whole budget -> reject it.
         storage.delete_file(filepath.name)
+        if thumb:
+            storage.delete_file(thumb.name)
         db.update_video(
             job_id,
             status="error",
             filename=None,
+            thumbnail=None,
             bytes=0,
-            error="Video alone exceeds the storage limit",
+            error="File alone exceeds the storage limit",
         )
 
 
-def _resolve_filepath(job_id: str, info: dict) -> Path | None:
-    """Find the final merged file produced for this job."""
-    requested = info.get("requested_downloads") or []
-    if requested and requested[0].get("filepath"):
-        return Path(requested[0]["filepath"])
-    # Fallback: match by our job-id prefix, ignoring partial files.
-    matches = [
+def _resolve_media(job_id: str) -> Path | None:
+    """The final media file for this job (largest non-image, non-partial match)."""
+    candidates = [
         p for p in settings.media_dir.glob(f"{job_id}.*")
-        if not p.name.endswith(".part")
+        if not p.name.endswith(".part") and p.suffix.lower() not in IMAGE_EXTS
     ]
-    return matches[0] if matches else None
+    return max(candidates, key=lambda p: p.stat().st_size) if candidates else None
+
+
+def _resolve_thumbnail(job_id: str) -> Path | None:
+    """The thumbnail image saved for this job, if any."""
+    images = [
+        p for p in settings.media_dir.glob(f"{job_id}.*")
+        if p.suffix.lower() in IMAGE_EXTS
+    ]
+    return images[0] if images else None

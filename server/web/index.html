@@ -14,7 +14,10 @@
 </head>
 <body>
   <header>
-    <h1>myYouTube</h1>
+    <div class="topbar">
+      <h1>myYouTube</h1>
+      <a class="navlink" href="/gallery.html">Gallery &rarr;</a>
+    </div>
     <div id="storage">
       <div class="bar"><div id="bar-fill"></div></div>
       <span id="storage-text">—</span>
@@ -23,11 +26,19 @@
 
   <form id="dl-form" autocomplete="off">
     <input id="url" type="url" inputmode="url" placeholder="Paste a YouTube URL…" required />
-    <button type="submit">Download</button>
+    <div class="form-row">
+      <div class="segment" id="category">
+        <label><input type="radio" name="category" value="video" checked /><span>Video</span></label>
+        <label><input type="radio" name="category" value="music" /><span>Music</span></label>
+        <label><input type="radio" name="category" value="podcast" /><span>Podcast</span></label>
+      </div>
+      <button type="submit">Download</button>
+    </div>
   </form>
 
   <ul id="videos"></ul>
 
+  <script src="/common.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

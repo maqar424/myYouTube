@@ -4,7 +4,10 @@ from . import db
 
 
 def used_bytes() -> int:
-    """Total bytes of completed videos (what counts against the cap)."""
+    """Total bytes of completed media (what counts against the cap).
+
+    Thumbnails are tiny and intentionally excluded from the budget.
+    """
     with db.connect() as c:
         row = c.execute(
             "SELECT COALESCE(SUM(bytes), 0) AS total FROM videos WHERE status='done'"
@@ -24,15 +27,15 @@ def delete_file(filename) -> None:
 
 
 def evict_to_fit(protect_id: str | None = None) -> list[str]:
-    """Delete oldest completed videos (FIFO) until usage <= cap.
+    """Delete oldest completed items (FIFO) until usage <= cap.
 
-    Never deletes ``protect_id`` (the video that triggered the check), so the
+    Never deletes ``protect_id`` (the item that triggered the check), so the
     newest download survives. Returns the ids that were evicted.
     """
     evicted: list[str] = []
     while used_bytes() > settings.max_bytes:
         with db.connect() as c:
-            query = "SELECT id, filename FROM videos WHERE status='done'"
+            query = "SELECT id, filename, thumbnail FROM videos WHERE status='done'"
             params: list = []
             if protect_id:
                 query += " AND id<>?"
@@ -42,6 +45,7 @@ def evict_to_fit(protect_id: str | None = None) -> list[str]:
         if row is None:
             break  # nothing left to evict
         delete_file(row["filename"])
+        delete_file(row["thumbnail"])
         db.delete_video_row(row["id"])
         evicted.append(row["id"])
     return evicted
@@ -54,9 +58,14 @@ def cleanup_orphans() -> None:
         return
     with db.connect() as c:
         rows = c.execute(
-            "SELECT filename FROM videos WHERE filename IS NOT NULL"
+            "SELECT filename, thumbnail FROM videos WHERE status='done'"
         ).fetchall()
-    referenced = {r["filename"] for r in rows}
+    referenced = set()
+    for r in rows:
+        if r["filename"]:
+            referenced.add(r["filename"])
+        if r["thumbnail"]:
+            referenced.add(r["thumbnail"])
     for entry in settings.media_dir.iterdir():
         if entry.is_file() and entry.name not in referenced:
             try:

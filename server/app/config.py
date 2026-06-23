@@ -24,6 +24,8 @@ class Settings:
         self.api_token = os.getenv("API_TOKEN", "").strip()
         self.ytdlp_format = os.getenv("YTDLP_FORMAT", "bestvideo*+bestaudio/best")
         self.merge_format = os.getenv("MERGE_FORMAT", "mp4")
+        # Audio codec for music/podcast (audio-only) downloads.
+        self.audio_format = os.getenv("AUDIO_FORMAT", "mp3")
 
 
 settings = Settings()

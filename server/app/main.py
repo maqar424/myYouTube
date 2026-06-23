@@ -42,6 +42,7 @@ def require_token(request: Request) -> None:
 
 class DownloadRequest(BaseModel):
     url: str
+    category: str = "video"
 
 
 @app.get("/api/status", dependencies=[Depends(require_token)])
@@ -63,8 +64,9 @@ def post_download(req: DownloadRequest):
     url = req.url.strip()
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
-    job_id = downloader.enqueue(url)
-    return {"id": job_id, "status": "queued"}
+    category = req.category if req.category in db.VALID_CATEGORIES else "video"
+    job_id = downloader.enqueue(url, category)
+    return {"id": job_id, "status": "queued", "category": category}
 
 
 @app.delete("/api/videos/{video_id}", dependencies=[Depends(require_token)])
@@ -73,6 +75,7 @@ def delete_video(video_id: str):
     if not video:
         raise HTTPException(status_code=404, detail="Not found")
     storage.delete_file(video.get("filename"))
+    storage.delete_file(video.get("thumbnail"))
     db.delete_video_row(video_id)
     return {"ok": True}
 
@@ -92,6 +95,17 @@ def download_file(video_id: str):
     return FileResponse(
         path, media_type="application/octet-stream", filename=download_name
     )
+
+
+@app.get("/api/videos/{video_id}/thumbnail", dependencies=[Depends(require_token)])
+def get_thumbnail(video_id: str):
+    video = db.get_video(video_id)
+    if not video or not video.get("thumbnail"):
+        raise HTTPException(status_code=404, detail="No thumbnail")
+    path = settings.media_dir / video["thumbnail"]
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail missing on disk")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 # Serve the PWA. Mounted LAST so the /api/* routes above take precedence.

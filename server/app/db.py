@@ -5,12 +5,16 @@ from contextlib import contextmanager
 
 from .config import settings
 
+VALID_CATEGORIES = ("video", "music", "podcast")
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS videos (
   id          TEXT PRIMARY KEY,
   url         TEXT NOT NULL,
   title       TEXT,
   filename    TEXT,
+  thumbnail   TEXT,
+  category    TEXT NOT NULL DEFAULT 'video', -- video | music | podcast
   bytes       INTEGER NOT NULL DEFAULT 0,
   duration    INTEGER,
   status      TEXT NOT NULL,           -- queued | downloading | done | error
@@ -33,18 +37,30 @@ def connect():
         conn.close()
 
 
+def _migrate(c) -> None:
+    """Add columns introduced after the first release, so existing dbs upgrade
+    in place without losing prior downloads."""
+    existing = {row["name"] for row in c.execute("PRAGMA table_info(videos)").fetchall()}
+    if "category" not in existing:
+        c.execute("ALTER TABLE videos ADD COLUMN category TEXT NOT NULL DEFAULT 'video'")
+    if "thumbnail" not in existing:
+        c.execute("ALTER TABLE videos ADD COLUMN thumbnail TEXT")
+
+
 def init_db() -> None:
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect() as c:
         c.execute("PRAGMA journal_mode=WAL;")
         c.executescript(SCHEMA)
+        _migrate(c)
 
 
-def create_video(video_id: str, url: str) -> None:
+def create_video(video_id: str, url: str, category: str = "video") -> None:
     with connect() as c:
         c.execute(
-            "INSERT INTO videos (id, url, status, created_at) VALUES (?, ?, 'queued', ?)",
-            (video_id, url, time.time()),
+            "INSERT INTO videos (id, url, category, status, created_at) "
+            "VALUES (?, ?, ?, 'queued', ?)",
+            (video_id, url, category, time.time()),
         )
 
 

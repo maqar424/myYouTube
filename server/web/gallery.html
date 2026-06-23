@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f0f0f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+  <link rel="stylesheet" href="/style.css" />
+  <title>Gallery — myYouTube</title>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <h1>Gallery</h1>
+      <a class="navlink" href="/">+ Add</a>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-cat="video">Videos</button>
+      <button class="tab" data-cat="music">Music</button>
+      <button class="tab" data-cat="podcast">Podcasts</button>
+    </nav>
+  </header>
+
+  <div id="grid" class="grid"></div>
+
+  <script src="/common.js"></script>
+  <script src="/gallery.js"></script>
+</body>
+</html>
