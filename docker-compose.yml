@@ -1,0 +1,15 @@
+services:
+  myyoutube:
+    build: ./server
+    container_name: myyoutube
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      # Publishes to your Tailscale IP when PUBLISH_ADDR is set in .env.
+      - "${PUBLISH_ADDR:-0.0.0.0}:${PORT:-8000}:8000"
+    volumes:
+      - ./media:/data/media     # the 25 GB video store
+      - ./state:/data/state     # SQLite metadata db
+    environment:
+      MEDIA_DIR: /data/media
+      DB_PATH: /data/state/app.db

@@ -1,0 +1,16 @@
+# Downloaded videos and runtime state (the 25 GB store)
+media/
+state/
+
+# Local environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# SQLite
+*.db
+*.db-wal
+*.db-shm

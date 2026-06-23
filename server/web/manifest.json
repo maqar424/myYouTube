@@ -1,0 +1,12 @@
+{
+  "name": "myYouTube",
+  "short_name": "myYouTube",
+  "description": "Download YouTube videos to your home VM and save them to your phone.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#0f0f0f",
+  "icons": [
+    { "src": "/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any maskable" }
+  ]
+}
