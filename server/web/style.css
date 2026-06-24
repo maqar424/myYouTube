@@ -234,3 +234,12 @@ button, .btn {
 .player-time { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 body.player-open { padding-bottom: 88px; }
+
+/* ---- music grouped by artist ---- */
+.grid.grouped { display: block; padding-bottom: 28px; }
+.grid.grouped .grid { padding: 0; }
+.artist-header {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  margin: 22px 2px 10px;
+}
+.artist-header:first-child { margin-top: 6px; }
