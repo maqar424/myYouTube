@@ -19,6 +19,14 @@ _start_lock = threading.Lock()
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
+def running_version() -> str:
+    """The yt-dlp version currently loaded in this process."""
+    try:
+        return yt_dlp.version.__version__
+    except AttributeError:
+        return "unknown"
+
+
 def enqueue(url: str, category: str = "video") -> str:
     """Register a new download and hand it to the worker."""
     job_id = uuid.uuid4().hex[:12]

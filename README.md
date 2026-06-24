@@ -30,6 +30,9 @@ and you can save the result back to your phone — all over your private
 - **Save to phone** — one tap downloads the file through the browser.
 - **No app store** — it's a PWA; "Add to Home screen" makes it feel native.
 - **Private by default** — reachable only over your tailnet; optional token.
+- **One-tap yt-dlp update** — the footer shows the current yt-dlp version and an
+  Update button that upgrades it and restarts the app to apply (yt-dlp also
+  auto-updates on every container start).
 
 ## Layout
 

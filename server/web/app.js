@@ -3,6 +3,8 @@
 // Landing page: submit downloads (with a category) and show live activity.
 // Shared helpers (api, getToken, fmt*, escapeHtml, fileUrl) come from common.js.
 
+let lastVideos = [];
+
 function renderStatus(s) {
   const max = s.max_bytes || 1;
   const by = s.by_category || {};
@@ -23,6 +25,9 @@ function renderStatus(s) {
   ].map(([k, label]) =>
     `<span class="item"><span class="dot cat-${k}"></span>${label} ${fmtBytes(by[k] || 0)}</span>`
   ).join("");
+
+  document.getElementById("ytdlp-version").textContent =
+    "yt-dlp " + (s.ytdlp_version || "—");
 }
 
 function metaFor(v) {
@@ -36,6 +41,7 @@ function metaFor(v) {
 }
 
 function renderVideos(videos) {
+  lastVideos = videos;
   const ul = document.getElementById("videos");
   ul.innerHTML = "";
   if (!videos.length) {
@@ -122,6 +128,42 @@ document.getElementById("dl-form").addEventListener("submit", async (e) => {
     refresh();
   } catch (err) {
     alert("Failed: " + err.message);
+  }
+});
+
+const updateBtn = document.getElementById("update-btn");
+updateBtn.addEventListener("click", async () => {
+  const active = lastVideos.filter(
+    (v) => v.status === "downloading" || v.status === "queued"
+  ).length;
+  const msg = active
+    ? `${active} download(s) in progress will be interrupted (they resume after the restart). Update yt-dlp now?`
+    : "Update yt-dlp now? The app will restart briefly.";
+  if (!confirm(msg)) return;
+
+  const original = updateBtn.textContent;
+  updateBtn.disabled = true;
+  updateBtn.textContent = "Updating…";
+  try {
+    const r = await api("/api/update-ytdlp", { method: "POST" });
+    if (r.changed) {
+      updateBtn.textContent = `Updated → ${r.new}, restarting…`;
+      // The server is restarting; the poll loop reconnects on its own.
+      setTimeout(() => {
+        updateBtn.disabled = false;
+        updateBtn.textContent = original;
+      }, 10000);
+    } else {
+      updateBtn.textContent = `Already current (${r.new})`;
+      setTimeout(() => {
+        updateBtn.disabled = false;
+        updateBtn.textContent = original;
+      }, 3000);
+    }
+  } catch (e) {
+    alert("Update failed: " + e.message);
+    updateBtn.disabled = false;
+    updateBtn.textContent = original;
   }
 });
 

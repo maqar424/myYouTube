@@ -1,4 +1,10 @@
 """myYouTube backend: a small FastAPI app + the PWA it serves."""
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -51,6 +57,7 @@ def get_status():
         "used_bytes": storage.used_bytes(),
         "by_category": storage.used_by_category(),
         "max_bytes": settings.max_bytes,
+        "ytdlp_version": downloader.running_version(),
         "auth_required": bool(settings.api_token),
     }
 
@@ -107,6 +114,49 @@ def get_thumbnail(video_id: str):
     if not path.exists():
         raise HTTPException(status_code=404, detail="Thumbnail missing on disk")
     return FileResponse(path, media_type="image/jpeg")
+
+
+def _restart_soon(delay: float = 1.5) -> None:
+    """Stop this process shortly after responding. Docker's
+    `restart: unless-stopped` brings the container back up, and the entrypoint
+    re-launches the app with the freshly installed yt-dlp loaded."""
+    def _stop() -> None:
+        time.sleep(delay)
+        os.kill(os.getpid(), signal.SIGTERM)
+    threading.Thread(target=_stop, daemon=True).start()
+
+
+@app.post("/api/update-ytdlp", dependencies=[Depends(require_token)])
+def update_ytdlp():
+    old = downloader.running_version()
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-U", "--no-cache-dir", "yt-dlp"],
+            capture_output=True, text=True, timeout=300,
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="pip timed out")
+    if proc.returncode != 0:
+        last = (proc.stderr or proc.stdout).strip().splitlines()
+        raise HTTPException(status_code=500, detail=(last[-1] if last else "pip failed")[:300])
+
+    # Query the freshly installed version in a clean interpreter (the version
+    # imported in *this* process is still the old one until we restart).
+    new = old
+    try:
+        out = subprocess.run(
+            [sys.executable, "-c", "import yt_dlp,sys; sys.stdout.write(yt_dlp.version.__version__)"],
+            capture_output=True, text=True, timeout=30,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            new = out.stdout.strip()
+    except subprocess.SubprocessError:
+        pass
+
+    changed = new != old
+    if changed:
+        _restart_soon()  # apply the update by reloading the process
+    return {"old": old, "new": new, "changed": changed, "restarting": changed}
 
 
 # Serve the PWA. Mounted LAST so the /api/* routes above take precedence.
