@@ -21,7 +21,7 @@ function renderStatus(s) {
     ["music", "Music"],
     ["podcast", "Podcasts"],
   ].map(([k, label]) =>
-    `<span class="item"><span class="dot ${k}"></span>${label} ${fmtBytes(by[k] || 0)}</span>`
+    `<span class="item"><span class="dot cat-${k}"></span>${label} ${fmtBytes(by[k] || 0)}</span>`
   ).join("");
 }
 
@@ -56,7 +56,7 @@ function renderVideos(videos) {
     li.innerHTML = `
       <div class="info">
         <div class="title-row">
-          <span class="badge ${cat}">${cat}</span>
+          <span class="badge cat-${cat}">${cat}</span>
           <span class="title">${escapeHtml(title)}</span>
         </div>
         <div class="meta">${escapeHtml(metaFor(v))}</div>

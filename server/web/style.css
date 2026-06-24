@@ -44,9 +44,9 @@ h1 { font-size: 22px; margin: 0; }
 }
 /* stacked storage usage, one segment per category */
 .seg { height: 100%; width: 0; transition: width .4s ease; }
-.seg.video { background: var(--accent); }    /* red */
-.seg.music { background: var(--ok); }         /* green */
-.seg.podcast { background: var(--blue); }     /* blue */
+.seg.cat-video { background: var(--accent); }    /* red */
+.seg.cat-music { background: var(--ok); }         /* green */
+.seg.cat-podcast { background: var(--blue); }     /* blue */
 
 /* single-fill progress bar used in the download list */
 .bar.small { height: 6px; margin-top: 8px; display: block; }
@@ -60,9 +60,9 @@ h1 { font-size: 22px; margin: 0; }
 .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--muted); }
 .legend .item { display: flex; align-items: center; gap: 5px; }
 .legend .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.legend .dot.video { background: var(--accent); }
-.legend .dot.music { background: var(--ok); }
-.legend .dot.podcast { background: var(--blue); }
+.legend .dot.cat-video { background: var(--accent); }
+.legend .dot.cat-music { background: var(--ok); }
+.legend .dot.cat-podcast { background: var(--blue); }
 
 /* ---- download form ---- */
 #dl-form { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 18px; }
@@ -109,9 +109,9 @@ button, .btn {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
   padding: 2px 7px; border-radius: 999px; flex-shrink: 0;
 }
-.badge.video { background: rgba(59,130,246,.18); color: #8ab4ff; }
-.badge.music { background: rgba(52,199,89,.18); color: #6ee787; }
-.badge.podcast { background: rgba(255,59,48,.20); color: #ff8a80; }
+.badge.cat-video { background: rgba(59,130,246,.18); color: #8ab4ff; }
+.badge.cat-music { background: rgba(52,199,89,.18); color: #6ee787; }
+.badge.cat-podcast { background: rgba(255,59,48,.20); color: #ff8a80; }
 
 /* ---- landing list ---- */
 #videos { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
