@@ -40,6 +40,7 @@ function withToken(path) {
 
 function fileUrl(id) { return withToken(`/api/videos/${id}/file`); }
 function thumbUrl(id) { return withToken(`/api/videos/${id}/thumbnail`); }
+function streamUrl(id) { return withToken(`/api/videos/${id}/stream`); }
 
 function fmtBytes(b) {
   if (!b) return "0 B";

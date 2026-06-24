@@ -1,4 +1,5 @@
 """myYouTube backend: a small FastAPI app + the PWA it serves."""
+import mimetypes
 import os
 import signal
 import subprocess
@@ -114,6 +115,34 @@ def get_thumbnail(video_id: str):
     if not path.exists():
         raise HTTPException(status_code=404, detail="Thumbnail missing on disk")
     return FileResponse(path, media_type="image/jpeg")
+
+
+_MEDIA_TYPES = {
+    ".mp4": "video/mp4", ".webm": "video/webm", ".mkv": "video/x-matroska",
+    ".mov": "video/quicktime",
+    ".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".opus": "audio/ogg",
+    ".ogg": "audio/ogg", ".oga": "audio/ogg", ".wav": "audio/wav",
+    ".flac": "audio/flac", ".aac": "audio/aac",
+}
+
+
+def _media_type_for(path: Path) -> str:
+    ext = path.suffix.lower()
+    return _MEDIA_TYPES.get(ext) or mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+
+
+@app.get("/api/videos/{video_id}/stream", dependencies=[Depends(require_token)])
+def stream_file(video_id: str):
+    """Serve the media file inline (correct MIME, no attachment header) so the
+    browser can play it in <video>/<audio>. FileResponse handles HTTP range
+    requests, so seeking works."""
+    video = db.get_video(video_id)
+    if not video or video["status"] != "done" or not video.get("filename"):
+        raise HTTPException(status_code=404, detail="Not available")
+    path = settings.media_dir / video["filename"]
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File missing on disk")
+    return FileResponse(path, media_type=_media_type_for(path))
 
 
 def _restart_soon(delay: float = 1.5) -> None:
