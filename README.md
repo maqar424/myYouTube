@@ -20,12 +20,19 @@ and you can save the result back to your phone — all over your private
 
 - **Paste & download** — submit a YouTube URL; the VM downloads it in the
   background and shows live progress.
-- **Best quality** — `bestvideo + bestaudio`, merged to MP4 with ffmpeg.
-- **25 GB cap, FIFO** — when the store is full, the oldest videos are deleted
+- **Categories** — file each link as **Video**, **Music**, or **Podcast**.
+  Video is full video (`bestvideo + bestaudio`, merged to MP4); Music and
+  Podcast are fetched **audio-only** and saved as MP3.
+- **Gallery** — a second page with a thumbnail grid, one tab per category.
+  YouTube thumbnails are downloaded and shown for each item.
+- **25 GB cap, FIFO** — when the store is full, the oldest items are deleted
   automatically to make room.
 - **Save to phone** — one tap downloads the file through the browser.
 - **No app store** — it's a PWA; "Add to Home screen" makes it feel native.
 - **Private by default** — reachable only over your tailnet; optional token.
+- **One-tap yt-dlp update** — an Update link in the header upgrades yt-dlp and
+  restarts the app to apply it (hover shows the current version; yt-dlp also
+  auto-updates on every container start).
 
 ## Layout
 
@@ -38,11 +45,18 @@ myYouTube/
     ├── requirements.txt
     ├── app/                # FastAPI backend
     │   ├── main.py         # routes + serves the PWA
-    │   ├── downloader.py   # yt-dlp worker + progress
+    │   ├── downloader.py   # yt-dlp worker + progress + thumbnails
     │   ├── storage.py      # size accounting + FIFO eviction
-    │   ├── db.py           # SQLite metadata
+    │   ├── db.py           # SQLite metadata (category, thumbnail, ...)
     │   └── config.py
-    └── web/                # the PWA (index.html, app.js, style.css, manifest)
+    └── web/                # the PWA
+        ├── index.html      # download page (URL + category picker)
+        ├── gallery.html    # gallery grid, one tab per category
+        ├── common.js       # shared JS helpers
+        ├── app.js          # landing page logic
+        ├── gallery.js      # gallery logic
+        ├── style.css
+        └── manifest.json
 ```
 
 ## Run it on the Ubuntu VM
@@ -67,7 +81,7 @@ docker compose logs -f
 docker compose down
 ```
 
-### Binding to Tailscale (recommended) --
+### Binding to Tailscale (recommended)
 
 Set `PUBLISH_ADDR` in `.env` to the VM's Tailscale IP so the service is **only**
 reachable from devices on your tailnet:
@@ -86,8 +100,10 @@ that behind a firewall you trust.
 2. Open `http://<vm-tailscale-ip>:8000` (or `http://<vm-name>:8000` if you use
    MagicDNS) in Chrome.
 3. Chrome menu → **Add to Home screen** to install the PWA.
-4. Paste a YouTube URL, hit **Download**, watch progress, then tap **Save** to
-   pull the finished video onto your phone.
+4. Pick a category (**Video / Music / Podcast**), paste a YouTube URL, and hit
+   **Download**. Watch progress on the landing page.
+5. Open **Gallery** (top-right link) to browse finished items by category with
+   thumbnails, and tap **Save** to pull a file onto your phone.
 
 ## Configuration (`.env`)
 
@@ -97,7 +113,8 @@ that behind a firewall you trust.
 | `PORT`         | `8000`                        | Host port. |
 | `MAX_BYTES`    | `25G`                         | Storage cap. Oldest videos auto-deleted (FIFO) past this. |
 | `YTDLP_FORMAT` | `bestvideo*+bestaudio/best`   | yt-dlp format selector. |
-| `MERGE_FORMAT` | `mp4`                         | Output container. Use `mkv` for exotic 4K codecs. |
+| `MERGE_FORMAT` | `mp4`                         | Output container for video. Use `mkv` for exotic 4K codecs. |
+| `AUDIO_FORMAT` | `mp3`                         | Codec for Music/Podcast (audio-only) downloads. |
 | `API_TOKEN`    | *(empty)*                     | Optional shared secret. Empty = rely on Tailscale only. |
 
 ## Notes & limits
