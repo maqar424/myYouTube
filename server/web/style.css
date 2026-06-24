@@ -31,7 +31,16 @@ header {
 
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h1 { font-size: 22px; margin: 0; }
-.navlink { color: var(--blue); text-decoration: none; font-size: 15px; font-weight: 600; white-space: nowrap; }
+.nav { display: flex; align-items: center; gap: 16px; }
+.navlink {
+  background: none; border: none; padding: 0;
+  color: var(--blue);
+  text-decoration: none;
+  font-size: 15px; font-weight: 600;
+  white-space: nowrap; cursor: pointer;
+}
+.navlink.plain { color: var(--text); }   /* white "Update" action */
+.navlink:disabled { opacity: .6; cursor: default; }
 
 #storage { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
 .bar {
@@ -142,16 +151,6 @@ button, .btn {
 .btn.del { background: var(--surface-2); color: var(--text); }
 
 .empty { color: var(--muted); text-align: center; padding: 36px 12px; grid-column: 1 / -1; }
-
-/* ---- footer / yt-dlp updater ---- */
-#footer {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  margin: 24px 0 32px; padding-top: 16px;
-  border-top: 0.5px solid var(--surface-2);
-  font-size: 13px; color: var(--muted);
-}
-.btn.ghost { background: var(--surface-2); color: var(--text); font-size: 13px; padding: 9px 13px; }
-.btn.ghost:disabled { opacity: .6; cursor: default; }
 
 /* ---- gallery ---- */
 .tabs { display: flex; gap: 8px; margin-top: 14px; }

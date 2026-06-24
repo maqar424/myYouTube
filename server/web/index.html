@@ -16,7 +16,10 @@
   <header>
     <div class="topbar">
       <h1>myYouTube</h1>
-      <a class="navlink" href="/gallery.html">Gallery &rarr;</a>
+      <nav class="nav">
+        <button id="update-btn" class="navlink plain" type="button">Update</button>
+        <a class="navlink" href="/gallery.html">Gallery &rarr;</a>
+      </nav>
     </div>
     <div id="storage">
       <div class="bar" id="storage-bar">
@@ -42,11 +45,6 @@
   </form>
 
   <ul id="videos"></ul>
-
-  <footer id="footer">
-    <span id="ytdlp-version">yt-dlp —</span>
-    <button id="update-btn" class="btn ghost" type="button">Update yt-dlp</button>
-  </footer>
 
   <script src="/common.js"></script>
   <script src="/app.js"></script>

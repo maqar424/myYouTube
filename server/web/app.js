@@ -26,8 +26,8 @@ function renderStatus(s) {
     `<span class="item"><span class="dot cat-${k}"></span>${label} ${fmtBytes(by[k] || 0)}</span>`
   ).join("");
 
-  document.getElementById("ytdlp-version").textContent =
-    "yt-dlp " + (s.ytdlp_version || "—");
+  const ub = document.getElementById("update-btn");
+  if (ub) ub.title = "yt-dlp " + (s.ytdlp_version || "—");
 }
 
 function metaFor(v) {
@@ -141,29 +141,27 @@ updateBtn.addEventListener("click", async () => {
     : "Update yt-dlp now? The app will restart briefly.";
   if (!confirm(msg)) return;
 
-  const original = updateBtn.textContent;
   updateBtn.disabled = true;
   updateBtn.textContent = "Updating…";
   try {
     const r = await api("/api/update-ytdlp", { method: "POST" });
     if (r.changed) {
-      updateBtn.textContent = `Updated → ${r.new}, restarting…`;
+      updateBtn.textContent = "Restarting…";
+      alert(`yt-dlp updated: ${r.old} → ${r.new}. The app is restarting.`);
       // The server is restarting; the poll loop reconnects on its own.
       setTimeout(() => {
         updateBtn.disabled = false;
-        updateBtn.textContent = original;
+        updateBtn.textContent = "Update";
       }, 10000);
     } else {
-      updateBtn.textContent = `Already current (${r.new})`;
-      setTimeout(() => {
-        updateBtn.disabled = false;
-        updateBtn.textContent = original;
-      }, 3000);
+      updateBtn.disabled = false;
+      updateBtn.textContent = "Update";
+      alert(`yt-dlp is already current (${r.new}).`);
     }
   } catch (e) {
     alert("Update failed: " + e.message);
     updateBtn.disabled = false;
-    updateBtn.textContent = original;
+    updateBtn.textContent = "Update";
   }
 });
 
