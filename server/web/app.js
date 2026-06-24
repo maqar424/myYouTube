@@ -4,10 +4,25 @@
 // Shared helpers (api, getToken, fmt*, escapeHtml, fileUrl) come from common.js.
 
 function renderStatus(s) {
-  const pct = s.max_bytes ? Math.min(100, (s.used_bytes / s.max_bytes) * 100) : 0;
-  document.getElementById("bar-fill").style.width = pct + "%";
+  const max = s.max_bytes || 1;
+  const by = s.by_category || {};
+  const widthFor = (b) => Math.min(100, ((b || 0) / max) * 100) + "%";
+
+  document.getElementById("seg-video").style.width = widthFor(by.video);
+  document.getElementById("seg-music").style.width = widthFor(by.music);
+  document.getElementById("seg-podcast").style.width = widthFor(by.podcast);
+
+  const used = (by.video || 0) + (by.music || 0) + (by.podcast || 0);
   document.getElementById("storage-text").textContent =
-    `${fmtBytes(s.used_bytes)} / ${fmtBytes(s.max_bytes)}`;
+    `${fmtBytes(used)} / ${fmtBytes(s.max_bytes)}`;
+
+  document.getElementById("storage-legend").innerHTML = [
+    ["video", "Videos"],
+    ["music", "Music"],
+    ["podcast", "Podcasts"],
+  ].map(([k, label]) =>
+    `<span class="item"><span class="dot ${k}"></span>${label} ${fmtBytes(by[k] || 0)}</span>`
+  ).join("");
 }
 
 function metaFor(v) {

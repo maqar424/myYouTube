@@ -40,16 +40,29 @@ h1 { font-size: 22px; margin: 0; }
   background: var(--surface-2);
   border-radius: 999px;
   overflow: hidden;
+  display: flex;                 /* storage segments sit side by side */
 }
-.bar > div, #bar-fill {
-  height: 100%;
-  width: 0;
-  background: linear-gradient(90deg, var(--ok), var(--accent));
-  transition: width .4s ease;
+/* stacked storage usage, one segment per category */
+.seg { height: 100%; width: 0; transition: width .4s ease; }
+.seg.video { background: var(--accent); }    /* red */
+.seg.music { background: var(--ok); }         /* green */
+.seg.podcast { background: var(--blue); }     /* blue */
+
+/* single-fill progress bar used in the download list */
+.bar.small { height: 6px; margin-top: 8px; display: block; }
+.bar.small > div {
+  height: 100%; width: 0;
+  background: var(--blue);
+  transition: width .3s ease;
 }
-.bar.small { height: 6px; margin-top: 8px; }
-.bar.small > div { background: var(--blue); }
 #storage-text { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.legend .item { display: flex; align-items: center; gap: 5px; }
+.legend .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.legend .dot.video { background: var(--accent); }
+.legend .dot.music { background: var(--ok); }
+.legend .dot.podcast { background: var(--blue); }
 
 /* ---- download form ---- */
 #dl-form { display: flex; flex-direction: column; gap: 10px; margin: 12px 0 18px; }

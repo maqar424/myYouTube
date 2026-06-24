@@ -15,6 +15,20 @@ def used_bytes() -> int:
     return int(row["total"])
 
 
+def used_by_category() -> dict:
+    """Bytes used per category (completed items only)."""
+    totals = {"video": 0, "music": 0, "podcast": 0}
+    with db.connect() as c:
+        rows = c.execute(
+            "SELECT category, COALESCE(SUM(bytes), 0) AS total "
+            "FROM videos WHERE status='done' GROUP BY category"
+        ).fetchall()
+    for r in rows:
+        cat = r["category"] or "video"
+        totals[cat] = totals.get(cat, 0) + int(r["total"])
+    return totals
+
+
 def delete_file(filename) -> None:
     if not filename:
         return

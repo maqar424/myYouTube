@@ -49,6 +49,7 @@ class DownloadRequest(BaseModel):
 def get_status():
     return {
         "used_bytes": storage.used_bytes(),
+        "by_category": storage.used_by_category(),
         "max_bytes": settings.max_bytes,
         "auth_required": bool(settings.api_token),
     }
