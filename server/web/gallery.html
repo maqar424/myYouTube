@@ -27,6 +27,27 @@
 
   <div id="grid" class="grid"></div>
 
+  <!-- Video modal -->
+  <div id="video-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-body">
+      <button id="modal-close" class="modal-close" type="button" aria-label="Close">&#10005;</button>
+      <video id="video" controls playsinline></video>
+    </div>
+  </div>
+
+  <!-- Bottom-pinned audio player -->
+  <div id="player" class="player hidden" aria-hidden="true">
+    <button id="player-toggle" class="player-btn" type="button" aria-label="Play or pause"></button>
+    <div class="player-main">
+      <div id="player-title" class="player-title"></div>
+      <input id="player-seek" class="player-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+    </div>
+    <span id="player-time" class="player-time">0:00</span>
+    <button id="player-close" class="player-btn" type="button" aria-label="Close player">&#10005;</button>
+    <audio id="audio" preload="metadata"></audio>
+  </div>
+
   <script src="/common.js"></script>
   <script src="/gallery.js"></script>
 </body>
