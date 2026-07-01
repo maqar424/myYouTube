@@ -50,6 +50,7 @@ def require_token(request: Request) -> None:
 class DownloadRequest(BaseModel):
     url: str
     category: str = "video"
+    playlist: bool = False
 
 
 @app.get("/api/status", dependencies=[Depends(require_token)])
@@ -74,6 +75,9 @@ def post_download(req: DownloadRequest):
     if not url:
         raise HTTPException(status_code=400, detail="URL is required")
     category = req.category if req.category in db.VALID_CATEGORIES else "video"
+    if req.playlist:
+        downloader.enqueue_playlist(url, category)
+        return {"status": "expanding", "category": category}
     job_id = downloader.enqueue(url, category)
     return {"id": job_id, "status": "queued", "category": category}
 

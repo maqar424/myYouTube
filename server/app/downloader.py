@@ -35,6 +35,44 @@ def enqueue(url: str, category: str = "video") -> str:
     return job_id
 
 
+def _entry_url(entry: dict) -> str | None:
+    """Resolve a flat playlist entry to a watchable video URL."""
+    url = entry.get("url") or entry.get("webpage_url")
+    if url and str(url).startswith("http"):
+        return url
+    vid = entry.get("id") or url
+    return f"https://www.youtube.com/watch?v={vid}" if vid else None
+
+
+def enqueue_playlist(url: str, category: str = "video") -> None:
+    """Flat-extract a playlist and enqueue each entry as its own single-video
+    download. Runs in a background thread so the request returns immediately."""
+    def _work() -> None:
+        opts = {
+            "extract_flat": "in_playlist",
+            "skip_download": True,
+            "quiet": True,
+            "no_warnings": True,
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except Exception:  # noqa: BLE001 - a bad/empty playlist just adds nothing
+            return
+        entries = info.get("entries")
+        if entries is None:  # not actually a playlist -> treat as a single video
+            enqueue(url, category)
+            return
+        for entry in entries:
+            if not entry:
+                continue
+            vid_url = _entry_url(entry)
+            if vid_url:
+                enqueue(vid_url, category)
+
+    threading.Thread(target=_work, name="playlist-expander", daemon=True).start()
+
+
 def start_worker() -> None:
     global _started
     with _start_lock:
