@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS videos (
   title       TEXT,
   filename    TEXT,
   thumbnail   TEXT,
+  artist      TEXT,
   category    TEXT NOT NULL DEFAULT 'video', -- video | music | podcast
   bytes       INTEGER NOT NULL DEFAULT 0,
   duration    INTEGER,
@@ -45,6 +46,8 @@ def _migrate(c) -> None:
         c.execute("ALTER TABLE videos ADD COLUMN category TEXT NOT NULL DEFAULT 'video'")
     if "thumbnail" not in existing:
         c.execute("ALTER TABLE videos ADD COLUMN thumbnail TEXT")
+    if "artist" not in existing:
+        c.execute("ALTER TABLE videos ADD COLUMN artist TEXT")
 
 
 def init_db() -> None:

@@ -37,65 +37,105 @@ function fmtClock(s) {
 }
 
 // --- gallery grid ---
+function buildCard(v) {
+  const cat = v.category || "video";
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const thumb = v.thumbnail
+    ? `<img class="thumb" src="${thumbUrl(v.id)}" loading="lazy" alt="" />`
+    : `<div class="thumb placeholder">${PLACEHOLDER[cat] || "🎬"}</div>`;
+
+  card.innerHTML = `
+    <div class="thumb-wrap">
+      ${thumb}
+      <button class="card-del" type="button" title="Delete from server" aria-label="Delete from server">${ICON_TRASH}</button>
+    </div>
+    <div class="card-body">
+      <div class="title clamp">${escapeHtml(v.title || v.url)}</div>
+      <div class="meta">${fmtBytes(v.bytes)} · ${fmtDuration(v.duration)}</div>
+    </div>
+    <div class="actions"></div>`;
+
+  card.querySelector(".card-del").onclick = async () => {
+    if (!confirm("Delete this item from the server?")) return;
+    try {
+      await api(`/api/videos/${v.id}`, { method: "DELETE" });
+      load();
+    } catch (e) {
+      alert("Failed: " + e.message);
+    }
+  };
+
+  const actions = card.querySelector(".actions");
+
+  const stream = document.createElement("button");
+  stream.className = "btn stream";
+  stream.type = "button";
+  stream.textContent = "Stream";
+  stream.onclick = () =>
+    cat === "music" || cat === "podcast" ? playAudio(v) : openVideo(v);
+  actions.appendChild(stream);
+
+  const dl = document.createElement("a");
+  dl.className = "btn dl";
+  dl.textContent = "Download";
+  dl.href = fileUrl(v.id);
+  dl.setAttribute("download", "");
+  actions.appendChild(dl);
+
+  return card;
+}
+
 function render() {
+  grid.className = "grid";
+  grid.innerHTML = "";
+
   const items = allVideos.filter(
     (v) => v.status === "done" && (v.category || "video") === currentCat
   );
-
-  grid.innerHTML = "";
   if (!items.length) {
     grid.innerHTML = '<p class="empty">Nothing here yet.</p>';
     return;
   }
 
+  if (currentCat === "music") {
+    renderGroupedByArtist(items);
+  } else {
+    for (const v of items) grid.appendChild(buildCard(v));
+  }
+}
+
+// Music tab: group cards under A→Z artist headers ("Unknown artist" last).
+function renderGroupedByArtist(items) {
+  grid.classList.add("grouped");
+
+  const groups = new Map();
   for (const v of items) {
-    const cat = v.category || "video";
-    const card = document.createElement("div");
-    card.className = "card";
+    const artist = (v.artist && v.artist.trim()) || "Unknown artist";
+    if (!groups.has(artist)) groups.set(artist, []);
+    groups.get(artist).push(v);
+  }
 
-    const thumb = v.thumbnail
-      ? `<img class="thumb" src="${thumbUrl(v.id)}" loading="lazy" alt="" />`
-      : `<div class="thumb placeholder">${PLACEHOLDER[cat] || "🎬"}</div>`;
+  const names = [...groups.keys()].sort((a, b) => {
+    if (a === "Unknown artist") return 1;
+    if (b === "Unknown artist") return -1;
+    return a.localeCompare(b, undefined, { sensitivity: "base" });
+  });
 
-    card.innerHTML = `
-      <div class="thumb-wrap">
-        ${thumb}
-        <button class="card-del" type="button" title="Delete from server" aria-label="Delete from server">${ICON_TRASH}</button>
-      </div>
-      <div class="card-body">
-        <div class="title clamp">${escapeHtml(v.title || v.url)}</div>
-        <div class="meta">${fmtBytes(v.bytes)} · ${fmtDuration(v.duration)}</div>
-      </div>
-      <div class="actions"></div>`;
+  for (const name of names) {
+    const header = document.createElement("h2");
+    header.className = "artist-header";
+    header.textContent = name;
+    grid.appendChild(header);
 
-    card.querySelector(".card-del").onclick = async () => {
-      if (!confirm("Delete this item from the server?")) return;
-      try {
-        await api(`/api/videos/${v.id}`, { method: "DELETE" });
-        load();
-      } catch (e) {
-        alert("Failed: " + e.message);
-      }
-    };
-
-    const actions = card.querySelector(".actions");
-
-    const stream = document.createElement("button");
-    stream.className = "btn stream";
-    stream.type = "button";
-    stream.textContent = "Stream";
-    stream.onclick = () =>
-      cat === "music" || cat === "podcast" ? playAudio(v) : openVideo(v);
-    actions.appendChild(stream);
-
-    const dl = document.createElement("a");
-    dl.className = "btn dl";
-    dl.textContent = "Download";
-    dl.href = fileUrl(v.id);
-    dl.setAttribute("download", "");
-    actions.appendChild(dl);
-
-    grid.appendChild(card);
+    const sub = document.createElement("div");
+    sub.className = "grid";
+    const songs = groups.get(name).slice().sort((a, b) =>
+      (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" })
+    );
+    for (const v of songs) sub.appendChild(buildCard(v));
+    grid.appendChild(sub);
   }
 }
 

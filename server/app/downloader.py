@@ -1,5 +1,6 @@
 """Background download worker built on yt-dlp."""
 import queue
+import re
 import threading
 import time
 import uuid
@@ -153,6 +154,22 @@ def _build_opts(job_id: str, category: str) -> dict:
     return opts
 
 
+def _extract_artist(info: dict) -> str | None:
+    """Best-effort artist from yt-dlp metadata.
+
+    Prefers explicit music tags, then falls back to the uploader/channel,
+    stripping YouTube's auto-generated ' - Topic' suffix.
+    """
+    artists = info.get("artists")
+    if isinstance(artists, list) and artists:
+        return ", ".join(str(a) for a in artists if a) or None
+    for key in ("artist", "creator", "uploader", "channel"):
+        val = info.get(key)
+        if val:
+            return re.sub(r"\s*-\s*Topic$", "", str(val)).strip() or None
+    return None
+
+
 def _run_job(job_id: str) -> None:
     video = db.get_video(job_id)
     if not video:
@@ -180,6 +197,7 @@ def _run_job(job_id: str) -> None:
         thumbnail=thumb.name if thumb else None,
         bytes=size,
         title=info.get("title"),
+        artist=_extract_artist(info),
         duration=int(info.get("duration") or 0),
         finished_at=time.time(),
     )
