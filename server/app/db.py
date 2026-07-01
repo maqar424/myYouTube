@@ -127,16 +127,26 @@ def create_playlist(name: str, source: str = "user") -> dict:
 
 
 def list_playlists():
+    """All playlists, each with its ordered member video ids (for one-shot
+    rendering of the Playlists view)."""
     with connect() as c:
-        rows = c.execute(
-            """SELECT p.id, p.name, p.source, p.created_at,
-                      COUNT(i.video_id) AS count
-               FROM playlists p
-               LEFT JOIN playlist_items i ON i.playlist_id = p.id
-               GROUP BY p.id
-               ORDER BY p.created_at ASC"""
+        pls = c.execute(
+            "SELECT id, name, source, created_at FROM playlists ORDER BY created_at ASC"
         ).fetchall()
-    return [dict(r) for r in rows]
+        items = c.execute(
+            "SELECT playlist_id, video_id FROM playlist_items ORDER BY position ASC"
+        ).fetchall()
+    members: dict = {}
+    for it in items:
+        members.setdefault(it["playlist_id"], []).append(it["video_id"])
+    result = []
+    for p in pls:
+        vids = members.get(p["id"], [])
+        result.append({
+            "id": p["id"], "name": p["name"], "source": p["source"],
+            "created_at": p["created_at"], "count": len(vids), "video_ids": vids,
+        })
+    return result
 
 
 def get_playlist(playlist_id: str):
