@@ -118,9 +118,9 @@ button, .btn {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
   padding: 2px 7px; border-radius: 999px; flex-shrink: 0;
 }
-.badge.cat-video { background: rgba(59,130,246,.18); color: #8ab4ff; }
-.badge.cat-music { background: rgba(52,199,89,.18); color: #6ee787; }
-.badge.cat-podcast { background: rgba(255,59,48,.20); color: #ff8a80; }
+.badge.cat-video { background: rgba(255,59,48,.20); color: #ff8a80; }    /* red */
+.badge.cat-music { background: rgba(52,199,89,.18); color: #6ee787; }     /* green */
+.badge.cat-podcast { background: rgba(59,130,246,.18); color: #8ab4ff; }   /* blue */
 
 /* ---- landing list ---- */
 #videos { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }

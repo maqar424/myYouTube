@@ -85,7 +85,6 @@ function renderVideos(videos) {
     del.className = "btn del";
     del.textContent = "Delete";
     del.onclick = async () => {
-      if (!confirm("Delete this download?")) return;
       try {
         await api(`/api/videos/${v.id}`, { method: "DELETE" });
         refresh();

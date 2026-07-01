@@ -58,7 +58,6 @@ function buildCard(v) {
     <div class="actions"></div>`;
 
   card.querySelector(".card-del").onclick = async () => {
-    if (!confirm("Delete this item from the server?")) return;
     try {
       await api(`/api/videos/${v.id}`, { method: "DELETE" });
       load();
