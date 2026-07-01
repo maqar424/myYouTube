@@ -99,6 +99,17 @@ def get_playlist(playlist_id: str):
     return playlist
 
 
+@app.patch("/api/playlists/{playlist_id}", dependencies=[Depends(require_token)])
+def rename_playlist(playlist_id: str, req: PlaylistCreate):
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if not db.get_playlist(playlist_id):
+        raise HTTPException(status_code=404, detail="Playlist not found")
+    db.rename_playlist(playlist_id, name)
+    return {"ok": True}
+
+
 @app.delete("/api/playlists/{playlist_id}", dependencies=[Depends(require_token)])
 def delete_playlist(playlist_id: str):
     db.delete_playlist(playlist_id)

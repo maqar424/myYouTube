@@ -155,6 +155,11 @@ def get_playlist(playlist_id: str):
     return dict(row) if row else None
 
 
+def rename_playlist(playlist_id: str, name: str) -> None:
+    with connect() as c:
+        c.execute("UPDATE playlists SET name=? WHERE id=?", (name, playlist_id))
+
+
 def delete_playlist(playlist_id: str) -> None:
     with connect() as c:
         c.execute("DELETE FROM playlist_items WHERE playlist_id=?", (playlist_id,))

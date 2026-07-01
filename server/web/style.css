@@ -161,6 +161,14 @@ button, .btn {
 }
 .tab.active { background: var(--accent); color: #fff; }
 
+.search {
+  width: 100%; margin-top: 12px;
+  padding: 11px 14px; border-radius: var(--radius);
+  border: 1px solid var(--surface-2); background: var(--surface);
+  color: var(--text); font-size: 15px;
+}
+.search:focus { outline: none; border-color: var(--blue); }
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -274,11 +282,13 @@ body.player-open { padding-bottom: 88px; }
 }
 .seg-btn.active { background: var(--accent); color: #fff; }
 
-/* show all / show less under an artist or playlist */
-.artist-more {
-  background: none; border: none; color: var(--blue);
-  font-size: 13px; font-weight: 600; padding: 8px 2px 0; cursor: pointer;
+/* horizontal scrolling row of cards (artists & playlists) */
+.hscroll {
+  display: flex; gap: 12px; overflow-x: auto;
+  padding: 0 0 8px; -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
 }
+.hscroll .card { flex: 0 0 158px; scroll-snap-align: start; }
 
 /* playlists view */
 .new-playlist { margin: 0 0 16px; padding: 10px 14px; font-size: 14px; }
@@ -309,7 +319,18 @@ body.player-open { padding-bottom: 88px; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px; border-bottom: 0.5px solid var(--surface-2);
 }
-.sheet-title { font-size: 15px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-name {
+  flex: 1; min-width: 0;
+  background: none; border: none; border-bottom: 1px solid transparent;
+  color: var(--text); font-size: 15px; font-weight: 600; padding: 2px 0;
+}
+.sheet-name:focus { outline: none; border-bottom-color: var(--blue); }
+.sheet-search {
+  margin: 10px 12px 0; padding: 9px 12px;
+  border-radius: 10px; border: 1px solid var(--surface-2);
+  background: var(--bg); color: var(--text); font-size: 14px;
+}
+.sheet-search:focus { outline: none; border-color: var(--blue); }
 .sheet-done { background: none; border: none; color: var(--blue); font-size: 15px; font-weight: 600; cursor: pointer; padding: 0 0 0 12px; flex-shrink: 0; }
 .addsongs-list { overflow-y: auto; padding: 6px 12px 12px; }
 .add-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 0.5px solid var(--surface-2); }

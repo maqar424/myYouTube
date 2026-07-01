@@ -16,13 +16,14 @@
   <header>
     <div class="topbar">
       <h1>Gallery</h1>
-      <a class="navlink" href="/">+ Add</a>
+      <a class="navlink" href="/">Download more</a>
     </div>
     <nav class="tabs" id="tabs">
       <button class="tab active" data-cat="video">Videos</button>
       <button class="tab" data-cat="music">Music</button>
       <button class="tab" data-cat="podcast">Podcasts</button>
     </nav>
+    <input id="search" class="search" type="search" placeholder="Search…" aria-label="Search" />
   </header>
 
   <div id="grid" class="grid"></div>
@@ -41,9 +42,10 @@
     <div class="modal-backdrop" id="addsongs-backdrop"></div>
     <div class="sheet">
       <div class="sheet-head">
-        <span id="addsongs-title" class="sheet-title">Add songs</span>
+        <input id="addsongs-name" class="sheet-name" type="text" aria-label="Playlist name" />
         <button id="addsongs-close" class="sheet-done" type="button">Done</button>
       </div>
+      <input id="addsongs-search" class="sheet-search" type="search" placeholder="Search songs…" aria-label="Search songs" />
       <div id="addsongs-list" class="addsongs-list"></div>
     </div>
   </div>

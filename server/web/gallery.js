@@ -2,8 +2,9 @@
 
 // Gallery: browse finished downloads. Video plays in a modal; music/podcasts
 // play in the bottom-pinned audio bar. The Music tab has two modes:
-//   All Songs  -> grouped by artist (top 8 per artist, expandable)
-//   Playlists  -> each playlist stacked (first 4 songs, expandable)
+//   All Songs  -> grouped by artist, each a horizontal scrolling row
+//   Playlists  -> each playlist a horizontal scrolling row of its songs
+// A search box filters the current tab; the picker has its own search + rename.
 
 const PLACEHOLDER = { video: "🎬", music: "🎵", podcast: "🎙️" };
 
@@ -13,18 +14,19 @@ const ICON_TRASH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" 
 const ICON_MINUS = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
 
-const ARTIST_LIMIT = 8;
-const PLAYLIST_LIMIT = 4;
-
 let allVideos = [];
 let playlists = [];
 let currentCat = "video";
 let musicMode = "allsongs"; // "allsongs" | "playlists"
-const expandedArtists = new Set();
-const expandedPlaylists = new Set();
+let searchQuery = "";
+
+// picker state
+let addPlaylistId = null;
+let addMemberIds = new Set();
 
 // --- element handles ---
 const grid = document.getElementById("grid");
+const searchInput = document.getElementById("search");
 const audio = document.getElementById("audio");
 const player = document.getElementById("player");
 const toggleBtn = document.getElementById("player-toggle");
@@ -38,7 +40,8 @@ const modalClose = document.getElementById("modal-close");
 const modalBackdrop = document.getElementById("modal-backdrop");
 const addModal = document.getElementById("addsongs-modal");
 const addList = document.getElementById("addsongs-list");
-const addTitle = document.getElementById("addsongs-title");
+const addName = document.getElementById("addsongs-name");
+const addSearch = document.getElementById("addsongs-search");
 const addClose = document.getElementById("addsongs-close");
 const addBackdrop = document.getElementById("addsongs-backdrop");
 
@@ -56,6 +59,23 @@ function emptyMsg(text, cls) {
   p.className = cls || "empty";
   p.textContent = text;
   return p;
+}
+
+// title-only for videos/podcasts; title-or-artist for songs
+function matchesItem(v, q) {
+  return (v.title || "").toLowerCase().includes(q);
+}
+function matchesSong(v, q) {
+  return (v.title || "").toLowerCase().includes(q) ||
+         (v.artist || "").toLowerCase().includes(q);
+}
+
+// Higher view count first; songs without a view count fall back to recency.
+function sortByViewsThenRecent(a, b) {
+  const va = a.view_count == null ? -1 : a.view_count;
+  const vb = b.view_count == null ? -1 : b.view_count;
+  if (vb !== va) return vb - va;
+  return (b.created_at || 0) - (a.created_at || 0);
 }
 
 // ---------- cards ----------
@@ -115,6 +135,21 @@ function buildCard(v, opts = {}) {
   return card;
 }
 
+function groupHeader(text) {
+  const h = document.createElement("h2");
+  h.className = "artist-header";
+  h.textContent = text;
+  return h;
+}
+
+// A single horizontally scrolling row of cards.
+function renderStrip(songs, cardOpts) {
+  const strip = document.createElement("div");
+  strip.className = "hscroll";
+  for (const v of songs) strip.appendChild(buildCard(v, cardOpts));
+  grid.appendChild(strip);
+}
+
 // ---------- render ----------
 function render() {
   grid.className = "grid";
@@ -124,11 +159,14 @@ function render() {
     renderMusic();
     return;
   }
-  const items = allVideos.filter(
+
+  let items = allVideos.filter(
     (v) => v.status === "done" && (v.category || "video") === currentCat
   );
+  if (searchQuery) items = items.filter((v) => matchesItem(v, searchQuery));
+
   if (!items.length) {
-    grid.innerHTML = '<p class="empty">Nothing here yet.</p>';
+    grid.innerHTML = `<p class="empty">${searchQuery ? "No matches." : "Nothing here yet."}</p>`;
     return;
   }
   for (const v of items) grid.appendChild(buildCard(v));
@@ -140,9 +178,10 @@ function renderMusic() {
   if (musicMode === "playlists") {
     renderPlaylists();
   } else {
-    const items = allVideos.filter(
+    let items = allVideos.filter(
       (v) => v.status === "done" && (v.category || "video") === "music"
     );
+    if (searchQuery) items = items.filter((v) => matchesSong(v, searchQuery));
     renderArtistGroups(items);
   }
 }
@@ -163,42 +202,9 @@ function segBtn(label, active, onclick) {
   return b;
 }
 
-// Higher view count first; songs without a view count fall back to recency.
-function sortByViewsThenRecent(a, b) {
-  const va = a.view_count == null ? -1 : a.view_count;
-  const vb = b.view_count == null ? -1 : b.view_count;
-  if (vb !== va) return vb - va;
-  return (b.created_at || 0) - (a.created_at || 0);
-}
-
-function groupHeader(text) {
-  const h = document.createElement("h2");
-  h.className = "artist-header";
-  h.textContent = text;
-  return h;
-}
-
-// Render one group's songs capped at `limit`, plus a Show all / Show less toggle.
-function renderGroup(songs, limit, expanded, onToggle, cardOpts) {
-  const shown = expanded ? songs : songs.slice(0, limit);
-  const sub = document.createElement("div");
-  sub.className = "grid";
-  for (const v of shown) sub.appendChild(buildCard(v, cardOpts));
-  grid.appendChild(sub);
-
-  if (songs.length > limit) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "artist-more";
-    btn.textContent = expanded ? "Show less" : `Show all ${songs.length}`;
-    btn.onclick = onToggle;
-    grid.appendChild(btn);
-  }
-}
-
 function renderArtistGroups(items) {
   if (!items.length) {
-    grid.appendChild(emptyMsg("No songs yet."));
+    grid.appendChild(emptyMsg(searchQuery ? "No songs match your search." : "No songs yet."));
     return;
   }
   const groups = new Map();
@@ -214,13 +220,7 @@ function renderArtistGroups(items) {
   });
   for (const name of names) {
     grid.appendChild(groupHeader(name));
-    const songs = groups.get(name).slice().sort(sortByViewsThenRecent);
-    const expanded = expandedArtists.has(name);
-    renderGroup(songs, ARTIST_LIMIT, expanded, () => {
-      if (expanded) expandedArtists.delete(name);
-      else expandedArtists.add(name);
-      render();
-    }, {});
+    renderStrip(groups.get(name).slice().sort(sortByViewsThenRecent), {});
   }
 }
 
@@ -238,34 +238,34 @@ function renderPlaylists() {
   }
 
   const byId = new Map(allVideos.map((v) => [v.id, v]));
+  let anyShown = false;
   for (const pl of playlists) {
+    let songs = (pl.video_ids || [])
+      .map((id) => byId.get(id))
+      .filter((v) => v && v.status === "done");
+    if (searchQuery) songs = songs.filter((v) => matchesSong(v, searchQuery));
+    if (searchQuery && !songs.length) continue; // skip non-matching playlists while searching
+    anyShown = true;
+
     const head = document.createElement("div");
     head.className = "pl-head";
     head.innerHTML = `
       <div class="pl-head-title">${escapeHtml(pl.name)}</div>
       <div class="pl-head-actions">
-        <button class="pl-icon-btn pl-add" type="button" title="Add songs" aria-label="Add songs">${ICON_PLUS}</button>
+        <button class="pl-icon-btn pl-add" type="button" title="Add / edit songs" aria-label="Add or edit songs">${ICON_PLUS}</button>
         <button class="pl-icon-btn pl-del" type="button" title="Delete playlist" aria-label="Delete playlist">${ICON_TRASH}</button>
       </div>`;
     head.querySelector(".pl-add").onclick = () => openAddSongs(pl.id, pl.name);
     head.querySelector(".pl-del").onclick = () => deletePlaylistFlow(pl.id, pl.name);
     grid.appendChild(head);
 
-    const songs = (pl.video_ids || [])
-      .map((id) => byId.get(id))
-      .filter((v) => v && v.status === "done");
-
     if (!songs.length) {
       grid.appendChild(emptyMsg("Empty — tap + to add songs.", "pl-empty"));
       continue;
     }
-    const expanded = expandedPlaylists.has(pl.id);
-    renderGroup(songs, PLAYLIST_LIMIT, expanded, () => {
-      if (expanded) expandedPlaylists.delete(pl.id);
-      else expandedPlaylists.add(pl.id);
-      render();
-    }, { playlistId: pl.id });
+    renderStrip(songs, { playlistId: pl.id });
   }
+  if (searchQuery && !anyShown) grid.appendChild(emptyMsg("No songs match your search."));
 }
 
 // ---------- playlist actions ----------
@@ -285,26 +285,36 @@ async function deletePlaylistFlow(id, name) {
   if (!confirm(`Delete playlist “${name}”? Your songs stay in the library.`)) return;
   try {
     await api(`/api/playlists/${id}`, { method: "DELETE" });
-    expandedPlaylists.delete(id);
     await load();
   } catch (e) {
     alert("Failed: " + e.message);
   }
 }
 
-// ---------- add-songs picker ----------
+// ---------- add-songs picker (with rename + search) ----------
 function openAddSongs(playlistId, name) {
+  addPlaylistId = playlistId;
   const pl = playlists.find((p) => p.id === playlistId);
-  const memberIds = new Set(pl ? pl.video_ids : []);
-  addTitle.textContent = `Add songs to ${name}`;
+  addMemberIds = new Set(pl ? pl.video_ids : []);
+  addName.value = name;
+  addSearch.value = "";
+  renderAddList();
+  addModal.classList.remove("hidden");
+}
 
-  const songs = allVideos
-    .filter((v) => v.status === "done" && (v.category || "video") === "music")
-    .sort((a, b) => (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" }));
+function renderAddList() {
+  const q = addSearch.value.trim().toLowerCase();
+  let songs = allVideos.filter(
+    (v) => v.status === "done" && (v.category || "video") === "music"
+  );
+  if (q) songs = songs.filter((v) => matchesSong(v, q));
+  songs.sort((a, b) => (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" }));
 
   addList.innerHTML = "";
-  if (!songs.length) addList.appendChild(emptyMsg("No songs available."));
-
+  if (!songs.length) {
+    addList.appendChild(emptyMsg(q ? "No matches." : "No songs available."));
+    return;
+  }
   for (const v of songs) {
     const row = document.createElement("div");
     row.className = "add-row";
@@ -320,18 +330,18 @@ function openAddSongs(playlistId, name) {
       btn.textContent = inList ? "Added" : "Add";
       btn.classList.toggle("secondary", inList);
     };
-    setState(memberIds.has(v.id));
+    setState(addMemberIds.has(v.id));
     btn.onclick = async () => {
       btn.disabled = true;
       try {
-        if (memberIds.has(v.id)) {
-          await api(`/api/playlists/${playlistId}/items/${v.id}`, { method: "DELETE" });
-          memberIds.delete(v.id);
+        if (addMemberIds.has(v.id)) {
+          await api(`/api/playlists/${addPlaylistId}/items/${v.id}`, { method: "DELETE" });
+          addMemberIds.delete(v.id);
         } else {
-          await api(`/api/playlists/${playlistId}/items`, { method: "POST", body: JSON.stringify({ video_id: v.id }) });
-          memberIds.add(v.id);
+          await api(`/api/playlists/${addPlaylistId}/items`, { method: "POST", body: JSON.stringify({ video_id: v.id }) });
+          addMemberIds.add(v.id);
         }
-        setState(memberIds.has(v.id));
+        setState(addMemberIds.has(v.id));
       } catch (e) {
         alert("Failed: " + e.message);
       }
@@ -340,13 +350,28 @@ function openAddSongs(playlistId, name) {
     row.appendChild(btn);
     addList.appendChild(row);
   }
-  addModal.classList.remove("hidden");
+}
+
+async function commitRename() {
+  const newName = addName.value.trim();
+  const pl = playlists.find((p) => p.id === addPlaylistId);
+  if (!addPlaylistId || !newName || (pl && pl.name === newName)) return;
+  try {
+    await api(`/api/playlists/${addPlaylistId}`, { method: "PATCH", body: JSON.stringify({ name: newName }) });
+    if (pl) pl.name = newName;
+  } catch (e) {
+    alert("Rename failed: " + e.message);
+  }
 }
 
 function closeAddSongs() {
   addModal.classList.add("hidden");
-  load(); // reflect membership changes in the playlist view
+  load(); // reflect renames + membership changes
 }
+
+addSearch.addEventListener("input", renderAddList);
+addName.addEventListener("change", commitRename);
+addName.addEventListener("keydown", (e) => { if (e.key === "Enter") addName.blur(); });
 addClose.onclick = closeAddSongs;
 addBackdrop.onclick = closeAddSongs;
 
@@ -428,6 +453,12 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (!modal.classList.contains("hidden")) closeVideo();
   else if (!addModal.classList.contains("hidden")) closeAddSongs();
+});
+
+// ---------- search ----------
+searchInput.addEventListener("input", () => {
+  searchQuery = searchInput.value.trim().toLowerCase();
+  render();
 });
 
 // ---------- data loading + tabs ----------
