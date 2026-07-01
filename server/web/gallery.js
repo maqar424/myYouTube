@@ -19,6 +19,7 @@ let playlists = [];
 let currentCat = "video";
 let musicMode = "allsongs"; // "allsongs" | "playlists"
 let searchQuery = "";
+let lastSig = ""; // last-rendered data signature (skip idle re-renders)
 
 // picker state
 let addPlaylistId = null;
@@ -27,6 +28,8 @@ let addMemberIds = new Set();
 // --- element handles ---
 const grid = document.getElementById("grid");
 const searchInput = document.getElementById("search");
+const musicModes = document.getElementById("music-modes");
+const modeAdd = document.getElementById("mode-add");
 const audio = document.getElementById("audio");
 const player = document.getElementById("player");
 const toggleBtn = document.getElementById("player-toggle");
@@ -174,7 +177,6 @@ function render() {
 
 function renderMusic() {
   grid.className = "grid grouped";
-  grid.appendChild(buildMusicToggle());
   if (musicMode === "playlists") {
     renderPlaylists();
   } else {
@@ -184,22 +186,6 @@ function renderMusic() {
     if (searchQuery) items = items.filter((v) => matchesSong(v, searchQuery));
     renderArtistGroups(items);
   }
-}
-
-function buildMusicToggle() {
-  const wrap = document.createElement("div");
-  wrap.className = "music-toggle";
-  wrap.appendChild(segBtn("All Songs", musicMode === "allsongs", () => { musicMode = "allsongs"; render(); }));
-  wrap.appendChild(segBtn("Playlists", musicMode === "playlists", () => { musicMode = "playlists"; render(); }));
-  return wrap;
-}
-function segBtn(label, active, onclick) {
-  const b = document.createElement("button");
-  b.type = "button";
-  b.className = "seg-btn" + (active ? " active" : "");
-  b.textContent = label;
-  b.onclick = onclick;
-  return b;
 }
 
 function renderArtistGroups(items) {
@@ -225,13 +211,6 @@ function renderArtistGroups(items) {
 }
 
 function renderPlaylists() {
-  const newBtn = document.createElement("button");
-  newBtn.className = "btn secondary new-playlist";
-  newBtn.type = "button";
-  newBtn.textContent = "+ New playlist";
-  newBtn.onclick = createPlaylistFlow;
-  grid.appendChild(newBtn);
-
   if (!playlists.length) {
     grid.appendChild(emptyMsg("No playlists yet. Create one, or download a YouTube playlist as Music."));
     return;
@@ -455,18 +434,63 @@ document.addEventListener("keydown", (e) => {
   else if (!addModal.classList.contains("hidden")) closeAddSongs();
 });
 
-// ---------- search ----------
+// ---------- search + music modes ----------
+function clearSearch() {
+  searchQuery = "";
+  searchInput.value = "";
+}
+
+function updateModeUI() {
+  musicModes.querySelectorAll(".tab[data-mode]").forEach((t) =>
+    t.classList.toggle("active", t.dataset.mode === musicMode)
+  );
+  modeAdd.classList.toggle("hidden", musicMode !== "playlists");
+}
+
+// Search only filters the active view (a tab, or a music mode).
 searchInput.addEventListener("input", () => {
   searchQuery = searchInput.value.trim().toLowerCase();
   render();
 });
 
+musicModes.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  if (btn.id === "mode-add") return createPlaylistFlow();
+  if (!btn.dataset.mode) return;
+  musicMode = btn.dataset.mode;
+  clearSearch();
+  updateModeUI();
+  render();
+});
+
+// Vertical wheel scrolls the horizontal song rows (releases at the edges).
+document.addEventListener("wheel", (e) => {
+  const strip = e.target.closest && e.target.closest(".hscroll");
+  if (!strip || strip.scrollWidth <= strip.clientWidth) return;
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+  const atStart = strip.scrollLeft <= 0 && e.deltaY < 0;
+  const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1 && e.deltaY > 0;
+  if (atStart || atEnd) return;
+  strip.scrollLeft += e.deltaY;
+  e.preventDefault();
+}, { passive: false });
+
 // ---------- data loading + tabs ----------
+function dataSignature() {
+  const v = allVideos.map((x) => `${x.id}:${x.status}:${x.view_count || 0}`).join(",");
+  const p = playlists.map((x) => `${x.id}:${x.name}:${(x.video_ids || []).join("|")}`).join(";");
+  return v + "##" + p;
+}
+
 async function load() {
   try {
     const [videos, pls] = await Promise.all([api("/api/videos"), api("/api/playlists")]);
     allVideos = videos;
     playlists = pls;
+    const sig = dataSignature();
+    if (sig === lastSig) return; // unchanged — don't disturb scroll / search / mode
+    lastSig = sig;
     render();
   } catch (_) {
     /* transient — next tick retries */
@@ -478,9 +502,12 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   if (!btn) return;
   currentCat = btn.dataset.cat;
   musicMode = "allsongs";
-  document.querySelectorAll(".tab").forEach((t) =>
+  clearSearch();
+  document.querySelectorAll("#tabs .tab").forEach((t) =>
     t.classList.toggle("active", t === btn)
   );
+  musicModes.classList.toggle("hidden", currentCat !== "music");
+  updateModeUI();
   render();
 });
 

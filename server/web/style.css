@@ -169,6 +169,10 @@ button, .btn {
 }
 .search:focus { outline: none; border-color: var(--blue); }
 
+/* music sub-tabs (All Songs | Playlists | +) — same width as the tabs above */
+.sub-tabs { margin-top: 8px; }
+.sub-tabs .mode-add { flex: 0 0 auto; padding: 10px 14px; font-size: 16px; line-height: 1; }
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -269,29 +273,17 @@ body.player-open { padding-bottom: 88px; }
   font-size: 13px; padding: 6px; cursor: pointer; align-self: center;
 }
 
-/* ---- music: All Songs | Playlists sub-toggle ---- */
-.music-toggle {
-  display: inline-flex; gap: 4px;
-  background: var(--surface); border-radius: var(--radius);
-  padding: 4px; margin: 2px 0 16px;
-}
-.seg-btn {
-  background: none; border: none; color: var(--muted);
-  font-size: 14px; font-weight: 600; padding: 8px 16px;
-  border-radius: 10px; cursor: pointer;
-}
-.seg-btn.active { background: var(--accent); color: #fff; }
-
 /* horizontal scrolling row of cards (artists & playlists) */
 .hscroll {
   display: flex; gap: 12px; overflow-x: auto;
   padding: 0 0 8px; -webkit-overflow-scrolling: touch;
   scroll-snap-type: x proximity;
+  scrollbar-width: none;                          /* Firefox */
 }
+.hscroll::-webkit-scrollbar { display: none; }    /* WebKit */
 .hscroll .card { flex: 0 0 158px; scroll-snap-align: start; }
 
 /* playlists view */
-.new-playlist { margin: 0 0 16px; padding: 10px 14px; font-size: 14px; }
 .pl-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   margin: 22px 2px 10px;
