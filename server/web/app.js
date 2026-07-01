@@ -112,6 +112,33 @@ async function refresh() {
   }
 }
 
+// Classify a pasted URL: a bare playlist, a video within a playlist, or a plain video.
+function analyzeUrl(raw) {
+  let u;
+  try { u = new URL(raw); } catch (_) { return "single"; }
+  const list = u.searchParams.get("list");
+  if (!list) return "single";
+  if (/\/playlist/.test(u.pathname)) return "playlist"; // bare playlist URL
+  const hasVideo = u.searchParams.get("v") || u.hostname.includes("youtu.be");
+  return hasVideo ? "video-in-playlist" : "playlist";
+}
+
+// Resolve to "single" | "all" | "cancel" via the choice modal.
+function showPlaylistChoice() {
+  const modal = document.getElementById("playlist-modal");
+  return new Promise((resolve) => {
+    const done = (choice) => {
+      modal.classList.add("hidden");
+      resolve(choice);
+    };
+    document.getElementById("pl-single").onclick = () => done("single");
+    document.getElementById("pl-all").onclick = () => done("all");
+    document.getElementById("pl-cancel").onclick = () => done("cancel");
+    document.getElementById("playlist-backdrop").onclick = () => done("cancel");
+    modal.classList.remove("hidden");
+  });
+}
+
 document.getElementById("dl-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const input = document.getElementById("url");
@@ -119,10 +146,21 @@ document.getElementById("dl-form").addEventListener("submit", async (e) => {
   if (!url) return;
   const category =
     document.querySelector('input[name="category"]:checked')?.value || "video";
+
+  let playlist = false;
+  const kind = analyzeUrl(url);
+  if (kind === "video-in-playlist") {
+    const choice = await showPlaylistChoice();
+    if (choice === "cancel") return;
+    playlist = choice === "all";
+  } else if (kind === "playlist") {
+    playlist = true;
+  }
+
   try {
     await api("/api/download", {
       method: "POST",
-      body: JSON.stringify({ url, category }),
+      body: JSON.stringify({ url, category, playlist }),
     });
     input.value = "";
     refresh();
