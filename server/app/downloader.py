@@ -64,12 +64,19 @@ def enqueue_playlist(url: str, category: str = "video") -> None:
         if entries is None:  # not actually a playlist -> treat as a single video
             enqueue(url, category)
             return
+        # A music playlist is saved as a playlist automatically.
+        playlist_id = None
+        if category == "music":
+            name = (info.get("title") or "Playlist").strip() or "Playlist"
+            playlist_id = db.create_playlist(name, source="youtube")["id"]
         for entry in entries:
             if not entry:
                 continue
             vid_url = _entry_url(entry)
             if vid_url:
-                enqueue(vid_url, category)
+                job_id = enqueue(vid_url, category)
+                if playlist_id:
+                    db.add_playlist_item(playlist_id, job_id)
 
     threading.Thread(target=_work, name="playlist-expander", daemon=True).start()
 
@@ -198,6 +205,7 @@ def _run_job(job_id: str) -> None:
         bytes=size,
         title=info.get("title"),
         artist=_extract_artist(info),
+        view_count=info.get("view_count"),
         duration=int(info.get("duration") or 0),
         finished_at=time.time(),
     )

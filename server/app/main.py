@@ -69,6 +69,70 @@ def get_videos():
     return db.list_videos()
 
 
+class PlaylistCreate(BaseModel):
+    name: str
+
+
+class PlaylistItemAdd(BaseModel):
+    video_id: str
+
+
+@app.get("/api/playlists", dependencies=[Depends(require_token)])
+def list_playlists():
+    return db.list_playlists()
+
+
+@app.post("/api/playlists", dependencies=[Depends(require_token)])
+def create_playlist(req: PlaylistCreate):
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    return db.create_playlist(name)
+
+
+@app.get("/api/playlists/{playlist_id}", dependencies=[Depends(require_token)])
+def get_playlist(playlist_id: str):
+    playlist = db.get_playlist(playlist_id)
+    if not playlist:
+        raise HTTPException(status_code=404, detail="Playlist not found")
+    playlist["video_ids"] = db.playlist_video_ids(playlist_id)
+    return playlist
+
+
+@app.patch("/api/playlists/{playlist_id}", dependencies=[Depends(require_token)])
+def rename_playlist(playlist_id: str, req: PlaylistCreate):
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if not db.get_playlist(playlist_id):
+        raise HTTPException(status_code=404, detail="Playlist not found")
+    db.rename_playlist(playlist_id, name)
+    return {"ok": True}
+
+
+@app.delete("/api/playlists/{playlist_id}", dependencies=[Depends(require_token)])
+def delete_playlist(playlist_id: str):
+    db.delete_playlist(playlist_id)
+    return {"ok": True}
+
+
+@app.post("/api/playlists/{playlist_id}/items", dependencies=[Depends(require_token)])
+def add_playlist_item(playlist_id: str, req: PlaylistItemAdd):
+    if not db.get_playlist(playlist_id):
+        raise HTTPException(status_code=404, detail="Playlist not found")
+    db.add_playlist_item(playlist_id, req.video_id)
+    return {"ok": True}
+
+
+@app.delete(
+    "/api/playlists/{playlist_id}/items/{video_id}",
+    dependencies=[Depends(require_token)],
+)
+def remove_playlist_item(playlist_id: str, video_id: str):
+    db.remove_playlist_item(playlist_id, video_id)
+    return {"ok": True}
+
+
 @app.post("/api/download", dependencies=[Depends(require_token)])
 def post_download(req: DownloadRequest):
     url = req.url.strip()

@@ -16,13 +16,19 @@
   <header>
     <div class="topbar">
       <h1>Gallery</h1>
-      <a class="navlink" href="/">+ Add</a>
+      <a class="navlink" href="/">Download more</a>
     </div>
     <nav class="tabs" id="tabs">
       <button class="tab active" data-cat="video">Videos</button>
       <button class="tab" data-cat="music">Music</button>
       <button class="tab" data-cat="podcast">Podcasts</button>
     </nav>
+    <div class="tabs sub-tabs hidden" id="music-modes">
+      <button class="tab active" type="button" data-mode="allsongs">All Songs</button>
+      <button class="tab" type="button" data-mode="playlists">Playlists</button>
+      <button class="tab mode-add hidden" type="button" id="mode-add" aria-label="New playlist">+</button>
+    </div>
+    <input id="search" class="search" type="search" placeholder="Search…" aria-label="Search" />
   </header>
 
   <div id="grid" class="grid"></div>
@@ -36,15 +42,33 @@
     </div>
   </div>
 
+  <!-- Add-songs picker (playlists) -->
+  <div id="addsongs-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="addsongs-backdrop"></div>
+    <div class="sheet">
+      <div class="sheet-head">
+        <input id="addsongs-name" class="sheet-name" type="text" aria-label="Playlist name" />
+        <button id="addsongs-close" class="sheet-done" type="button">Done</button>
+      </div>
+      <input id="addsongs-search" class="sheet-search" type="search" placeholder="Search songs…" aria-label="Search songs" />
+      <div id="addsongs-list" class="addsongs-list"></div>
+    </div>
+  </div>
+
   <!-- Bottom-pinned audio player -->
   <div id="player" class="player hidden" aria-hidden="true">
-    <button id="player-toggle" class="player-btn" type="button" aria-label="Play or pause"></button>
-    <div class="player-main">
+    <div class="player-row1">
       <div id="player-title" class="player-title"></div>
-      <input id="player-seek" class="player-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+      <button id="player-close" class="player-btn" type="button" aria-label="Close player">&#10005;</button>
     </div>
-    <span id="player-time" class="player-time">0:00</span>
-    <button id="player-close" class="player-btn" type="button" aria-label="Close player">&#10005;</button>
+    <div class="player-row2">
+      <button id="player-shuffle" class="player-btn" type="button" aria-label="Shuffle"></button>
+      <button id="player-prev" class="player-btn" type="button" aria-label="Previous song"></button>
+      <button id="player-toggle" class="player-btn" type="button" aria-label="Play or pause"></button>
+      <button id="player-next" class="player-btn" type="button" aria-label="Next song"></button>
+      <input id="player-seek" class="player-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+      <span id="player-time" class="player-time">0:00</span>
+    </div>
     <audio id="audio" preload="metadata"></audio>
   </div>
 

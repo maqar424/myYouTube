@@ -1,6 +1,7 @@
-"""Tiny SQLite layer for video metadata."""
+"""Tiny SQLite layer for video + playlist metadata."""
 import sqlite3
 import time
+import uuid
 from contextlib import contextmanager
 
 from .config import settings
@@ -15,6 +16,7 @@ CREATE TABLE IF NOT EXISTS videos (
   filename    TEXT,
   thumbnail   TEXT,
   artist      TEXT,
+  view_count  INTEGER,
   category    TEXT NOT NULL DEFAULT 'video', -- video | music | podcast
   bytes       INTEGER NOT NULL DEFAULT 0,
   duration    INTEGER,
@@ -23,6 +25,20 @@ CREATE TABLE IF NOT EXISTS videos (
   error       TEXT,
   created_at  REAL NOT NULL,
   finished_at REAL
+);
+
+CREATE TABLE IF NOT EXISTS playlists (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL,
+  source      TEXT NOT NULL DEFAULT 'user', -- user | youtube
+  created_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS playlist_items (
+  playlist_id TEXT NOT NULL,
+  video_id    TEXT NOT NULL,
+  position    INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (playlist_id, video_id)
 );
 """
 
@@ -48,6 +64,8 @@ def _migrate(c) -> None:
         c.execute("ALTER TABLE videos ADD COLUMN thumbnail TEXT")
     if "artist" not in existing:
         c.execute("ALTER TABLE videos ADD COLUMN artist TEXT")
+    if "view_count" not in existing:
+        c.execute("ALTER TABLE videos ADD COLUMN view_count INTEGER")
 
 
 def init_db() -> None:
@@ -57,6 +75,8 @@ def init_db() -> None:
         c.executescript(SCHEMA)
         _migrate(c)
 
+
+# ---- videos ----
 
 def create_video(video_id: str, url: str, category: str = "video") -> None:
     with connect() as c:
@@ -90,4 +110,87 @@ def list_videos():
 
 def delete_video_row(video_id: str) -> None:
     with connect() as c:
+        c.execute("DELETE FROM playlist_items WHERE video_id=?", (video_id,))
         c.execute("DELETE FROM videos WHERE id=?", (video_id,))
+
+
+# ---- playlists ----
+
+def create_playlist(name: str, source: str = "user") -> dict:
+    playlist_id = uuid.uuid4().hex[:12]
+    with connect() as c:
+        c.execute(
+            "INSERT INTO playlists (id, name, source, created_at) VALUES (?, ?, ?, ?)",
+            (playlist_id, name, source, time.time()),
+        )
+    return {"id": playlist_id, "name": name, "source": source}
+
+
+def list_playlists():
+    """All playlists, each with its ordered member video ids (for one-shot
+    rendering of the Playlists view)."""
+    with connect() as c:
+        pls = c.execute(
+            "SELECT id, name, source, created_at FROM playlists ORDER BY created_at ASC"
+        ).fetchall()
+        items = c.execute(
+            "SELECT playlist_id, video_id FROM playlist_items ORDER BY position ASC"
+        ).fetchall()
+    members: dict = {}
+    for it in items:
+        members.setdefault(it["playlist_id"], []).append(it["video_id"])
+    result = []
+    for p in pls:
+        vids = members.get(p["id"], [])
+        result.append({
+            "id": p["id"], "name": p["name"], "source": p["source"],
+            "created_at": p["created_at"], "count": len(vids), "video_ids": vids,
+        })
+    return result
+
+
+def get_playlist(playlist_id: str):
+    with connect() as c:
+        row = c.execute("SELECT * FROM playlists WHERE id=?", (playlist_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def rename_playlist(playlist_id: str, name: str) -> None:
+    with connect() as c:
+        c.execute("UPDATE playlists SET name=? WHERE id=?", (name, playlist_id))
+
+
+def delete_playlist(playlist_id: str) -> None:
+    with connect() as c:
+        c.execute("DELETE FROM playlist_items WHERE playlist_id=?", (playlist_id,))
+        c.execute("DELETE FROM playlists WHERE id=?", (playlist_id,))
+
+
+def add_playlist_item(playlist_id: str, video_id: str) -> None:
+    with connect() as c:
+        row = c.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 AS pos FROM playlist_items WHERE playlist_id=?",
+            (playlist_id,),
+        ).fetchone()
+        c.execute(
+            "INSERT OR IGNORE INTO playlist_items (playlist_id, video_id, position) "
+            "VALUES (?, ?, ?)",
+            (playlist_id, video_id, row["pos"]),
+        )
+
+
+def remove_playlist_item(playlist_id: str, video_id: str) -> None:
+    with connect() as c:
+        c.execute(
+            "DELETE FROM playlist_items WHERE playlist_id=? AND video_id=?",
+            (playlist_id, video_id),
+        )
+
+
+def playlist_video_ids(playlist_id: str):
+    with connect() as c:
+        rows = c.execute(
+            "SELECT video_id FROM playlist_items WHERE playlist_id=? ORDER BY position ASC",
+            (playlist_id,),
+        ).fetchall()
+    return [r["video_id"] for r in rows]

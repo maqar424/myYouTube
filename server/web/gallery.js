@@ -1,20 +1,44 @@
 "use strict";
 
-// Gallery: browse finished downloads as a thumbnail grid, one tab per category.
-// Video plays in a modal; music/podcasts play in the bottom-pinned audio bar.
-// Shared helpers come from common.js.
+// Gallery: browse finished downloads. Video plays in a modal; music/podcasts
+// play in the bottom-pinned audio bar. The Music tab has two modes:
+//   All Songs  -> grouped by artist, each a horizontal scrolling row
+//   Playlists  -> each playlist a horizontal scrolling row of its songs
+// A search box filters the current tab; the picker has its own search + rename.
 
 const PLACEHOLDER = { video: "🎬", music: "🎵", podcast: "🎙️" };
 
 const ICON_PLAY = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
 const ICON_PAUSE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
 const ICON_TRASH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+const ICON_MINUS = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>';
+const ICON_PLUS = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+const ICON_PREV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 6h2.2v12H6z"/><path d="M20 6v12l-9-6z"/></svg>';
+const ICON_NEXT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 6v12l9-6z"/><path d="M15.8 6H18v12h-2.2z"/></svg>';
+const ICON_SHUFFLE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>';
 
 let allVideos = [];
+let playlists = [];
 let currentCat = "video";
+let musicMode = "allsongs"; // "allsongs" | "playlists"
+let searchQuery = "";
+let lastSig = ""; // last-rendered data signature (skip idle re-renders)
+
+// audio player queue
+let queue = [];     // songs in the row a track was started from
+let order = [];     // playback order: indices into queue (shuffled or 0..n)
+let orderPos = -1;  // current position within `order`
+let shuffle = false;
+
+// picker state
+let addPlaylistId = null;
+let addMemberIds = new Set();
 
 // --- element handles ---
 const grid = document.getElementById("grid");
+const searchInput = document.getElementById("search");
+const musicModes = document.getElementById("music-modes");
+const modeAdd = document.getElementById("mode-add");
 const audio = document.getElementById("audio");
 const player = document.getElementById("player");
 const toggleBtn = document.getElementById("player-toggle");
@@ -22,10 +46,19 @@ const seek = document.getElementById("player-seek");
 const timeEl = document.getElementById("player-time");
 const titleEl = document.getElementById("player-title");
 const playerClose = document.getElementById("player-close");
+const shuffleBtn = document.getElementById("player-shuffle");
+const prevBtn = document.getElementById("player-prev");
+const nextBtn = document.getElementById("player-next");
 const modal = document.getElementById("video-modal");
 const video = document.getElementById("video");
 const modalClose = document.getElementById("modal-close");
 const modalBackdrop = document.getElementById("modal-backdrop");
+const addModal = document.getElementById("addsongs-modal");
+const addList = document.getElementById("addsongs-list");
+const addName = document.getElementById("addsongs-name");
+const addSearch = document.getElementById("addsongs-search");
+const addClose = document.getElementById("addsongs-close");
+const addBackdrop = document.getElementById("addsongs-backdrop");
 
 function fmtClock(s) {
   s = Math.max(0, Math.floor(s || 0));
@@ -36,8 +69,32 @@ function fmtClock(s) {
   return h ? `${h}:${p(m)}:${p(sec)}` : `${m}:${p(sec)}`;
 }
 
-// --- gallery grid ---
-function buildCard(v) {
+function emptyMsg(text, cls) {
+  const p = document.createElement("p");
+  p.className = cls || "empty";
+  p.textContent = text;
+  return p;
+}
+
+// title-only for videos/podcasts; title-or-artist for songs
+function matchesItem(v, q) {
+  return (v.title || "").toLowerCase().includes(q);
+}
+function matchesSong(v, q) {
+  return (v.title || "").toLowerCase().includes(q) ||
+         (v.artist || "").toLowerCase().includes(q);
+}
+
+// Higher view count first; songs without a view count fall back to recency.
+function sortByViewsThenRecent(a, b) {
+  const va = a.view_count == null ? -1 : a.view_count;
+  const vb = b.view_count == null ? -1 : b.view_count;
+  if (vb !== va) return vb - va;
+  return (b.created_at || 0) - (a.created_at || 0);
+}
+
+// ---------- cards ----------
+function buildCard(v, opts = {}) {
   const cat = v.category || "video";
   const card = document.createElement("div");
   card.className = "card";
@@ -46,10 +103,13 @@ function buildCard(v) {
     ? `<img class="thumb" src="${thumbUrl(v.id)}" loading="lazy" alt="" />`
     : `<div class="thumb placeholder">${PLACEHOLDER[cat] || "🎬"}</div>`;
 
+  const cornerIcon = opts.playlistId ? ICON_MINUS : ICON_TRASH;
+  const cornerLabel = opts.playlistId ? "Remove from playlist" : "Delete from server";
+
   card.innerHTML = `
     <div class="thumb-wrap">
       ${thumb}
-      <button class="card-del" type="button" title="Delete from server" aria-label="Delete from server">${ICON_TRASH}</button>
+      <button class="card-del" type="button" title="${cornerLabel}" aria-label="${cornerLabel}">${cornerIcon}</button>
     </div>
     <div class="card-body">
       <div class="title clamp">${escapeHtml(v.title || v.url)}</div>
@@ -59,7 +119,11 @@ function buildCard(v) {
 
   card.querySelector(".card-del").onclick = async () => {
     try {
-      await api(`/api/videos/${v.id}`, { method: "DELETE" });
+      if (opts.playlistId) {
+        await api(`/api/playlists/${opts.playlistId}/items/${v.id}`, { method: "DELETE" });
+      } else {
+        await api(`/api/videos/${v.id}`, { method: "DELETE" });
+      }
       load();
     } catch (e) {
       alert("Failed: " + e.message);
@@ -73,7 +137,7 @@ function buildCard(v) {
   stream.type = "button";
   stream.textContent = "Stream";
   stream.onclick = () =>
-    cat === "music" || cat === "podcast" ? playAudio(v) : openVideo(v);
+    cat === "music" || cat === "podcast" ? playAudio(v, opts.queue) : openVideo(v);
   actions.appendChild(stream);
 
   const dl = document.createElement("a");
@@ -86,59 +150,224 @@ function buildCard(v) {
   return card;
 }
 
+function groupHeader(text) {
+  const h = document.createElement("h2");
+  h.className = "artist-header";
+  h.textContent = text;
+  return h;
+}
+
+// A single horizontally scrolling row of cards.
+function renderStrip(songs, cardOpts) {
+  const strip = document.createElement("div");
+  strip.className = "hscroll";
+  for (const v of songs) strip.appendChild(buildCard(v, { ...cardOpts, queue: songs }));
+  grid.appendChild(strip);
+}
+
+// ---------- render ----------
 function render() {
   grid.className = "grid";
   grid.innerHTML = "";
 
-  const items = allVideos.filter(
-    (v) => v.status === "done" && (v.category || "video") === currentCat
-  );
-  if (!items.length) {
-    grid.innerHTML = '<p class="empty">Nothing here yet.</p>';
+  if (currentCat === "music") {
+    renderMusic();
     return;
   }
 
-  if (currentCat === "music") {
-    renderGroupedByArtist(items);
+  let items = allVideos.filter(
+    (v) => v.status === "done" && (v.category || "video") === currentCat
+  );
+  if (searchQuery) items = items.filter((v) => matchesItem(v, searchQuery));
+
+  if (!items.length) {
+    grid.innerHTML = `<p class="empty">${searchQuery ? "No matches." : "Nothing here yet."}</p>`;
+    return;
+  }
+  const opts = currentCat === "podcast" ? { queue: items } : {};
+  for (const v of items) grid.appendChild(buildCard(v, opts));
+}
+
+function renderMusic() {
+  grid.className = "grid grouped";
+  if (musicMode === "playlists") {
+    renderPlaylists();
   } else {
-    for (const v of items) grid.appendChild(buildCard(v));
+    let items = allVideos.filter(
+      (v) => v.status === "done" && (v.category || "video") === "music"
+    );
+    if (searchQuery) items = items.filter((v) => matchesSong(v, searchQuery));
+    renderArtistGroups(items);
   }
 }
 
-// Music tab: group cards under A→Z artist headers ("Unknown artist" last).
-function renderGroupedByArtist(items) {
-  grid.classList.add("grouped");
-
+function renderArtistGroups(items) {
+  if (!items.length) {
+    grid.appendChild(emptyMsg(searchQuery ? "No songs match your search." : "No songs yet."));
+    return;
+  }
   const groups = new Map();
   for (const v of items) {
     const artist = (v.artist && v.artist.trim()) || "Unknown artist";
     if (!groups.has(artist)) groups.set(artist, []);
     groups.get(artist).push(v);
   }
-
   const names = [...groups.keys()].sort((a, b) => {
     if (a === "Unknown artist") return 1;
     if (b === "Unknown artist") return -1;
     return a.localeCompare(b, undefined, { sensitivity: "base" });
   });
-
   for (const name of names) {
-    const header = document.createElement("h2");
-    header.className = "artist-header";
-    header.textContent = name;
-    grid.appendChild(header);
-
-    const sub = document.createElement("div");
-    sub.className = "grid";
-    const songs = groups.get(name).slice().sort((a, b) =>
-      (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" })
-    );
-    for (const v of songs) sub.appendChild(buildCard(v));
-    grid.appendChild(sub);
+    grid.appendChild(groupHeader(name));
+    renderStrip(groups.get(name).slice().sort(sortByViewsThenRecent), {});
   }
 }
 
-// --- video modal ---
+function renderPlaylists() {
+  if (!playlists.length) {
+    grid.appendChild(emptyMsg("No playlists yet. Create one, or download a YouTube playlist as Music."));
+    return;
+  }
+
+  const byId = new Map(allVideos.map((v) => [v.id, v]));
+  let anyShown = false;
+  for (const pl of playlists) {
+    let songs = (pl.video_ids || [])
+      .map((id) => byId.get(id))
+      .filter((v) => v && v.status === "done");
+    if (searchQuery) songs = songs.filter((v) => matchesSong(v, searchQuery));
+    if (searchQuery && !songs.length) continue; // skip non-matching playlists while searching
+    anyShown = true;
+
+    const head = document.createElement("div");
+    head.className = "pl-head";
+    head.innerHTML = `
+      <div class="pl-head-title">${escapeHtml(pl.name)}</div>
+      <div class="pl-head-actions">
+        <button class="pl-icon-btn pl-add" type="button" title="Add / edit songs" aria-label="Add or edit songs">${ICON_PLUS}</button>
+        <button class="pl-icon-btn pl-del" type="button" title="Delete playlist" aria-label="Delete playlist">${ICON_TRASH}</button>
+      </div>`;
+    head.querySelector(".pl-add").onclick = () => openAddSongs(pl.id, pl.name);
+    head.querySelector(".pl-del").onclick = () => deletePlaylistFlow(pl.id, pl.name);
+    grid.appendChild(head);
+
+    if (!songs.length) {
+      grid.appendChild(emptyMsg("Empty — tap + to add songs.", "pl-empty"));
+      continue;
+    }
+    renderStrip(songs, { playlistId: pl.id });
+  }
+  if (searchQuery && !anyShown) grid.appendChild(emptyMsg("No songs match your search."));
+}
+
+// ---------- playlist actions ----------
+async function createPlaylistFlow() {
+  const name = prompt("New playlist name:");
+  if (!name || !name.trim()) return;
+  try {
+    await api("/api/playlists", { method: "POST", body: JSON.stringify({ name: name.trim() }) });
+    musicMode = "playlists";
+    await load();
+  } catch (e) {
+    alert("Failed: " + e.message);
+  }
+}
+
+async function deletePlaylistFlow(id, name) {
+  if (!confirm(`Delete playlist “${name}”? Your songs stay in the library.`)) return;
+  try {
+    await api(`/api/playlists/${id}`, { method: "DELETE" });
+    await load();
+  } catch (e) {
+    alert("Failed: " + e.message);
+  }
+}
+
+// ---------- add-songs picker (with rename + search) ----------
+function openAddSongs(playlistId, name) {
+  addPlaylistId = playlistId;
+  const pl = playlists.find((p) => p.id === playlistId);
+  addMemberIds = new Set(pl ? pl.video_ids : []);
+  addName.value = name;
+  addSearch.value = "";
+  renderAddList();
+  addModal.classList.remove("hidden");
+}
+
+function renderAddList() {
+  const q = addSearch.value.trim().toLowerCase();
+  let songs = allVideos.filter(
+    (v) => v.status === "done" && (v.category || "video") === "music"
+  );
+  if (q) songs = songs.filter((v) => matchesSong(v, q));
+  songs.sort((a, b) => (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" }));
+
+  addList.innerHTML = "";
+  if (!songs.length) {
+    addList.appendChild(emptyMsg(q ? "No matches." : "No songs available."));
+    return;
+  }
+  for (const v of songs) {
+    const row = document.createElement("div");
+    row.className = "add-row";
+    row.innerHTML = `
+      <div class="add-info">
+        <div class="add-title">${escapeHtml(v.title || v.url)}</div>
+        <div class="add-artist">${escapeHtml(v.artist || "Unknown artist")}</div>
+      </div>`;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn add-toggle";
+    const setState = (inList) => {
+      btn.textContent = inList ? "Added" : "Add";
+      btn.classList.toggle("secondary", inList);
+    };
+    setState(addMemberIds.has(v.id));
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        if (addMemberIds.has(v.id)) {
+          await api(`/api/playlists/${addPlaylistId}/items/${v.id}`, { method: "DELETE" });
+          addMemberIds.delete(v.id);
+        } else {
+          await api(`/api/playlists/${addPlaylistId}/items`, { method: "POST", body: JSON.stringify({ video_id: v.id }) });
+          addMemberIds.add(v.id);
+        }
+        setState(addMemberIds.has(v.id));
+      } catch (e) {
+        alert("Failed: " + e.message);
+      }
+      btn.disabled = false;
+    };
+    row.appendChild(btn);
+    addList.appendChild(row);
+  }
+}
+
+async function commitRename() {
+  const newName = addName.value.trim();
+  const pl = playlists.find((p) => p.id === addPlaylistId);
+  if (!addPlaylistId || !newName || (pl && pl.name === newName)) return;
+  try {
+    await api(`/api/playlists/${addPlaylistId}`, { method: "PATCH", body: JSON.stringify({ name: newName }) });
+    if (pl) pl.name = newName;
+  } catch (e) {
+    alert("Rename failed: " + e.message);
+  }
+}
+
+function closeAddSongs() {
+  addModal.classList.add("hidden");
+  load(); // reflect renames + membership changes
+}
+
+addSearch.addEventListener("input", renderAddList);
+addName.addEventListener("change", commitRename);
+addName.addEventListener("keydown", (e) => { if (e.key === "Enter") addName.blur(); });
+addClose.onclick = closeAddSongs;
+addBackdrop.onclick = closeAddSongs;
+
+// ---------- video modal ----------
 function openVideo(v) {
   closeAudio();
   video.src = streamUrl(v.id);
@@ -160,13 +389,25 @@ function closeVideo() {
 modalClose.onclick = closeVideo;
 modalBackdrop.onclick = closeVideo;
 
-// --- bottom audio player ---
+// ---------- bottom audio player ----------
 function updatePlayIcon() {
   toggleBtn.innerHTML = audio.paused ? ICON_PLAY : ICON_PAUSE;
 }
 
-function playAudio(v) {
-  closeVideo();
+function buildOrder() {
+  const idx = queue.map((_, i) => i);
+  if (shuffle) {
+    for (let i = idx.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idx[i], idx[j]] = [idx[j], idx[i]];
+    }
+  }
+  order = idx;
+}
+
+function playCurrent() {
+  const v = queue[order[orderPos]];
+  if (!v) return;
   titleEl.textContent = v.title || v.url;
   audio.src = streamUrl(v.id);
   seek.value = "0";
@@ -178,6 +419,28 @@ function playAudio(v) {
   updatePlayIcon();
 }
 
+function playAudio(v, list) {
+  closeVideo();
+  queue = list && list.length ? list.slice() : [v];
+  buildOrder();
+  const qi = Math.max(0, queue.findIndex((x) => x.id === v.id));
+  orderPos = Math.max(0, order.indexOf(qi));
+  playCurrent();
+}
+
+function playNext() {
+  if (!queue.length) return;
+  orderPos = (orderPos + 1) % order.length;
+  playCurrent();
+}
+
+function playPrev() {
+  if (!queue.length) return;
+  if (audio.currentTime > 3) { audio.currentTime = 0; return; } // restart if well into the song
+  orderPos = (orderPos - 1 + order.length) % order.length;
+  playCurrent();
+}
+
 function closeAudio() {
   audio.pause();
   audio.removeAttribute("src");
@@ -185,14 +448,35 @@ function closeAudio() {
   player.classList.add("hidden");
   player.setAttribute("aria-hidden", "true");
   document.body.classList.remove("player-open");
+  queue = [];
+  order = [];
+  orderPos = -1;
 }
+
+prevBtn.innerHTML = ICON_PREV;
+nextBtn.innerHTML = ICON_NEXT;
+shuffleBtn.innerHTML = ICON_SHUFFLE;
 
 toggleBtn.onclick = () => (audio.paused ? audio.play() : audio.pause());
 playerClose.onclick = closeAudio;
+nextBtn.onclick = playNext;
+prevBtn.onclick = playPrev;
+shuffleBtn.onclick = () => {
+  shuffle = !shuffle;
+  shuffleBtn.classList.toggle("active", shuffle);
+  if (queue.length) {
+    const currentQi = order[orderPos]; // keep the current song current across reshuffle
+    buildOrder();
+    orderPos = Math.max(0, order.indexOf(currentQi));
+  }
+};
 
 audio.addEventListener("play", updatePlayIcon);
 audio.addEventListener("pause", updatePlayIcon);
-audio.addEventListener("ended", updatePlayIcon);
+audio.addEventListener("ended", () => {
+  if (order.length > 1) playNext(); // auto-advance through the queue
+  else updatePlayIcon();
+});
 
 let scrubbing = false;
 seek.addEventListener("input", () => {
@@ -213,15 +497,81 @@ audio.addEventListener("timeupdate", () => {
 });
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    if (!modal.classList.contains("hidden")) closeVideo();
-  }
+  if (e.key !== "Escape") return;
+  if (!modal.classList.contains("hidden")) closeVideo();
+  else if (!addModal.classList.contains("hidden")) closeAddSongs();
 });
 
-// --- data loading + tabs ---
+// ---------- search + music modes ----------
+function clearSearch() {
+  searchQuery = "";
+  searchInput.value = "";
+}
+
+function updateModeUI() {
+  musicModes.querySelectorAll(".tab[data-mode]").forEach((t) =>
+    t.classList.toggle("active", t.dataset.mode === musicMode)
+  );
+  modeAdd.classList.toggle("hidden", musicMode !== "playlists");
+}
+
+// Search only filters the active view (a tab, or a music mode).
+searchInput.addEventListener("input", () => {
+  searchQuery = searchInput.value.trim().toLowerCase();
+  render();
+});
+
+musicModes.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  if (btn.id === "mode-add") return createPlaylistFlow();
+  if (!btn.dataset.mode) return;
+  musicMode = btn.dataset.mode;
+  clearSearch();
+  updateModeUI();
+  render();
+});
+
+// Vertical wheel scrolls the horizontal song rows. Take smaller steps and
+// briefly disable scroll-snap while wheeling so it glides instead of jumping a
+// whole card per notch; snap is restored the moment wheeling stops. Touch is
+// untouched (it never fires wheel, and snap stays on for it in steady state).
+const WHEEL_STEP = 0.5;
+const snapTimers = new WeakMap();
+document.addEventListener("wheel", (e) => {
+  const strip = e.target.closest && e.target.closest(".hscroll");
+  if (!strip || strip.scrollWidth <= strip.clientWidth) return;
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+  const atStart = strip.scrollLeft <= 0 && e.deltaY < 0;
+  const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1 && e.deltaY > 0;
+  if (atStart || atEnd) return;
+  e.preventDefault();
+
+  let dy = e.deltaY;
+  if (e.deltaMode === 1) dy *= 16;                     // lines -> px (e.g. Firefox)
+  else if (e.deltaMode === 2) dy *= strip.clientWidth; // pages -> px
+
+  strip.style.scrollSnapType = "none";
+  strip.scrollLeft += dy * WHEEL_STEP;
+  clearTimeout(snapTimers.get(strip));
+  snapTimers.set(strip, setTimeout(() => strip.style.removeProperty("scroll-snap-type"), 400));
+}, { passive: false });
+
+// ---------- data loading + tabs ----------
+function dataSignature() {
+  const v = allVideos.map((x) => `${x.id}:${x.status}:${x.view_count || 0}`).join(",");
+  const p = playlists.map((x) => `${x.id}:${x.name}:${(x.video_ids || []).join("|")}`).join(";");
+  return v + "##" + p;
+}
+
 async function load() {
   try {
-    allVideos = await api("/api/videos");
+    const [videos, pls] = await Promise.all([api("/api/videos"), api("/api/playlists")]);
+    allVideos = videos;
+    playlists = pls;
+    const sig = dataSignature();
+    if (sig === lastSig) return; // unchanged — don't disturb scroll / search / mode
+    lastSig = sig;
     render();
   } catch (_) {
     /* transient — next tick retries */
@@ -232,9 +582,13 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   const btn = e.target.closest(".tab");
   if (!btn) return;
   currentCat = btn.dataset.cat;
-  document.querySelectorAll(".tab").forEach((t) =>
+  musicMode = "allsongs";
+  clearSearch();
+  document.querySelectorAll("#tabs .tab").forEach((t) =>
     t.classList.toggle("active", t === btn)
   );
+  musicModes.classList.toggle("hidden", currentCat !== "music");
+  updateModeUI();
   render();
 });
 
