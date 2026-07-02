@@ -12,6 +12,12 @@
 
 * { box-sizing: border-box; }
 
+/* Hide the page's vertical scrollbar (visible only on desktop; mobile uses
+   transient overlay bars). Scrolling still works via wheel/trackpad/keys. */
+html, body { scrollbar-width: none; }              /* Firefox */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar { display: none; }         /* Chromium / WebKit */
+
 body {
   margin: 0 auto;
   max-width: 720px;
