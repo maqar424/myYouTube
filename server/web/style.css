@@ -4,11 +4,27 @@
   --surface-2: #2a2a2f;
   --text: #f1f1f1;
   --muted: #9a9aa2;
-  --accent: #ff3b30;
-  --blue: #3b82f6;
-  --ok: #34c759;
+  --accent: #ff3b30;    /* video / red */
+  --blue: #3b82f6;      /* podcast / blue */
+  --ok: #34c759;        /* music / green */
+  --dl: #8b5cf6;        /* download button — pairs with red/green/blue */
+  --cat: var(--accent); /* active-category accent (set per gallery tab) */
   --radius: 14px;
 }
+
+/* Light mode: only surfaces/text change; the category colors stay vivid. */
+html[data-theme="light"] {
+  --bg: #f4f4f6;
+  --surface: #ffffff;
+  --surface-2: #e6e6ec;
+  --text: #1b1b1f;
+  --muted: #6a6a73;
+}
+
+/* Gallery accent follows the active tab: video=red, music=green, podcast=blue. */
+body[data-cat="video"] { --cat: var(--accent); }
+body[data-cat="music"] { --cat: var(--ok); }
+body[data-cat="podcast"] { --cat: var(--blue); }
 
 * { box-sizing: border-box; }
 
@@ -35,9 +51,29 @@ header {
   z-index: 5;
 }
 
-.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.topbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.topbar > h1 { justify-self: start; }
+.topbar > .theme-toggle { justify-self: center; }
+.topbar > .nav, .topbar > .navlink { justify-self: end; }
 h1 { font-size: 22px; margin: 0; }
 .nav { display: flex; align-items: center; gap: 16px; }
+
+/* dark / light toggle */
+.theme-toggle { display: flex; align-items: center; gap: 8px; }
+.theme-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.slider {
+  position: absolute; inset: 0; cursor: pointer;
+  background: var(--surface-2); border-radius: 999px; transition: background .2s;
+}
+.slider::before {
+  content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%; transition: transform .2s;
+  box-shadow: 0 1px 2px rgba(0,0,0,.35);
+}
+.switch input:checked + .slider { background: var(--muted); }
+.switch input:checked + .slider::before { transform: translateX(18px); }
 .navlink {
   background: none; border: none; padding: 0;
   color: var(--blue);
@@ -127,6 +163,10 @@ button, .btn {
 .badge.cat-video { background: rgba(255,59,48,.20); color: #ff8a80; }    /* red */
 .badge.cat-music { background: rgba(52,199,89,.18); color: #6ee787; }     /* green */
 .badge.cat-podcast { background: rgba(59,130,246,.18); color: #8ab4ff; }   /* blue */
+/* darker badge text for contrast on the light-mode tints */
+html[data-theme="light"] .badge.cat-video { color: #c0392b; }
+html[data-theme="light"] .badge.cat-music { color: #2d8a41; }
+html[data-theme="light"] .badge.cat-podcast { color: #2563c9; }
 
 /* ---- landing list ---- */
 #videos { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -153,7 +193,7 @@ button, .btn {
 
 .actions { display: flex; gap: 8px; flex-shrink: 0; }
 .actions .btn { padding: 9px 13px; font-size: 13px; }
-.btn.dl { background: var(--blue); }
+.btn.dl { background: var(--dl); }
 .btn.del { background: var(--surface-2); color: var(--text); }
 
 .empty { color: var(--muted); text-align: center; padding: 36px 12px; grid-column: 1 / -1; }
@@ -165,7 +205,7 @@ button, .btn {
   padding: 10px; font-size: 14px; font-weight: 600;
   border-radius: 10px; justify-content: center;
 }
-.tab.active { background: var(--accent); color: #fff; }
+.tab.active { background: var(--cat); color: #fff; }
 
 .search {
   width: 100%; margin-top: 12px;
@@ -200,7 +240,7 @@ button, .btn {
 .card .actions { padding: 0 10px 10px; display: flex; align-items: center; gap: 6px; }
 .card .actions .btn { padding: 8px 4px; font-size: 12px; }
 .card .actions .stream, .card .actions .dl { flex: 1; justify-content: center; }
-.btn.stream { background: var(--accent); }
+.btn.stream { background: var(--cat); }
 
 .thumb-wrap { position: relative; }
 .card-del {
@@ -244,13 +284,13 @@ button, .btn {
   padding: 4px; cursor: pointer; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
 }
-.player-btn.active { color: var(--accent); }
+.player-btn.active { color: var(--cat); }
 .player-title {
   flex: 1; min-width: 0;
   font-size: 13px; font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.player-seek { flex: 1; min-width: 0; height: 4px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.player-seek { flex: 1; min-width: 0; height: 4px; margin: 0; accent-color: var(--cat); cursor: pointer; }
 .player-time { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 body.player-open { padding-bottom: 120px; }

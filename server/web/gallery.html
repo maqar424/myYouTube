@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("myyt_theme")||"dark";}catch(e){}</script>
   <meta name="theme-color" content="#0f0f0f" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -16,6 +17,11 @@
   <header>
     <div class="topbar">
       <h1>Gallery</h1>
+      <div class="theme-toggle">
+        <span class="theme-label">Light</span>
+        <label class="switch"><input type="checkbox" id="theme-switch" aria-label="Toggle dark mode" /><span class="slider"></span></label>
+        <span class="theme-label">Dark</span>
+      </div>
       <a class="navlink" href="/">Download more</a>
     </div>
     <nav class="tabs" id="tabs">

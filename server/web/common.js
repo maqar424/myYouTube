@@ -64,3 +64,18 @@ function escapeHtml(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
   );
 }
+
+// ---- dark / light theme (toggle present on both pages) ----
+const THEME_KEY = "myyt_theme";
+(function initTheme() {
+  const sw = document.getElementById("theme-switch");
+  const theme = document.documentElement.dataset.theme || localStorage.getItem(THEME_KEY) || "dark";
+  document.documentElement.dataset.theme = theme;
+  if (!sw) return;
+  sw.checked = theme === "dark"; // switch right = Dark
+  sw.addEventListener("change", () => {
+    const next = sw.checked ? "dark" : "light";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+  });
+})();
