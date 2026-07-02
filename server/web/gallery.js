@@ -464,7 +464,12 @@ musicModes.addEventListener("click", (e) => {
   render();
 });
 
-// Vertical wheel scrolls the horizontal song rows (releases at the edges).
+// Vertical wheel scrolls the horizontal song rows. Take smaller steps and
+// briefly disable scroll-snap while wheeling so it glides instead of jumping a
+// whole card per notch; snap is restored the moment wheeling stops. Touch is
+// untouched (it never fires wheel, and snap stays on for it in steady state).
+const WHEEL_STEP = 0.5;
+const snapTimers = new WeakMap();
 document.addEventListener("wheel", (e) => {
   const strip = e.target.closest && e.target.closest(".hscroll");
   if (!strip || strip.scrollWidth <= strip.clientWidth) return;
@@ -472,8 +477,16 @@ document.addEventListener("wheel", (e) => {
   const atStart = strip.scrollLeft <= 0 && e.deltaY < 0;
   const atEnd = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1 && e.deltaY > 0;
   if (atStart || atEnd) return;
-  strip.scrollLeft += e.deltaY;
   e.preventDefault();
+
+  let dy = e.deltaY;
+  if (e.deltaMode === 1) dy *= 16;                     // lines -> px (e.g. Firefox)
+  else if (e.deltaMode === 2) dy *= strip.clientWidth; // pages -> px
+
+  strip.style.scrollSnapType = "none";
+  strip.scrollLeft += dy * WHEEL_STEP;
+  clearTimeout(snapTimers.get(strip));
+  snapTimers.set(strip, setTimeout(() => strip.style.removeProperty("scroll-snap-type"), 400));
 }, { passive: false });
 
 // ---------- data loading + tabs ----------
