@@ -13,6 +13,9 @@ const ICON_PAUSE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="curren
 const ICON_TRASH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
 const ICON_MINUS = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>';
 const ICON_PLUS = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+const ICON_PREV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 6h2.2v12H6z"/><path d="M20 6v12l-9-6z"/></svg>';
+const ICON_NEXT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 6v12l9-6z"/><path d="M15.8 6H18v12h-2.2z"/></svg>';
+const ICON_SHUFFLE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>';
 
 let allVideos = [];
 let playlists = [];
@@ -20,6 +23,12 @@ let currentCat = "video";
 let musicMode = "allsongs"; // "allsongs" | "playlists"
 let searchQuery = "";
 let lastSig = ""; // last-rendered data signature (skip idle re-renders)
+
+// audio player queue
+let queue = [];     // songs in the row a track was started from
+let order = [];     // playback order: indices into queue (shuffled or 0..n)
+let orderPos = -1;  // current position within `order`
+let shuffle = false;
 
 // picker state
 let addPlaylistId = null;
@@ -37,6 +46,9 @@ const seek = document.getElementById("player-seek");
 const timeEl = document.getElementById("player-time");
 const titleEl = document.getElementById("player-title");
 const playerClose = document.getElementById("player-close");
+const shuffleBtn = document.getElementById("player-shuffle");
+const prevBtn = document.getElementById("player-prev");
+const nextBtn = document.getElementById("player-next");
 const modal = document.getElementById("video-modal");
 const video = document.getElementById("video");
 const modalClose = document.getElementById("modal-close");
@@ -125,7 +137,7 @@ function buildCard(v, opts = {}) {
   stream.type = "button";
   stream.textContent = "Stream";
   stream.onclick = () =>
-    cat === "music" || cat === "podcast" ? playAudio(v) : openVideo(v);
+    cat === "music" || cat === "podcast" ? playAudio(v, opts.queue) : openVideo(v);
   actions.appendChild(stream);
 
   const dl = document.createElement("a");
@@ -149,7 +161,7 @@ function groupHeader(text) {
 function renderStrip(songs, cardOpts) {
   const strip = document.createElement("div");
   strip.className = "hscroll";
-  for (const v of songs) strip.appendChild(buildCard(v, cardOpts));
+  for (const v of songs) strip.appendChild(buildCard(v, { ...cardOpts, queue: songs }));
   grid.appendChild(strip);
 }
 
@@ -172,7 +184,8 @@ function render() {
     grid.innerHTML = `<p class="empty">${searchQuery ? "No matches." : "Nothing here yet."}</p>`;
     return;
   }
-  for (const v of items) grid.appendChild(buildCard(v));
+  const opts = currentCat === "podcast" ? { queue: items } : {};
+  for (const v of items) grid.appendChild(buildCard(v, opts));
 }
 
 function renderMusic() {
@@ -381,8 +394,20 @@ function updatePlayIcon() {
   toggleBtn.innerHTML = audio.paused ? ICON_PLAY : ICON_PAUSE;
 }
 
-function playAudio(v) {
-  closeVideo();
+function buildOrder() {
+  const idx = queue.map((_, i) => i);
+  if (shuffle) {
+    for (let i = idx.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [idx[i], idx[j]] = [idx[j], idx[i]];
+    }
+  }
+  order = idx;
+}
+
+function playCurrent() {
+  const v = queue[order[orderPos]];
+  if (!v) return;
   titleEl.textContent = v.title || v.url;
   audio.src = streamUrl(v.id);
   seek.value = "0";
@@ -394,6 +419,28 @@ function playAudio(v) {
   updatePlayIcon();
 }
 
+function playAudio(v, list) {
+  closeVideo();
+  queue = list && list.length ? list.slice() : [v];
+  buildOrder();
+  const qi = Math.max(0, queue.findIndex((x) => x.id === v.id));
+  orderPos = Math.max(0, order.indexOf(qi));
+  playCurrent();
+}
+
+function playNext() {
+  if (!queue.length) return;
+  orderPos = (orderPos + 1) % order.length;
+  playCurrent();
+}
+
+function playPrev() {
+  if (!queue.length) return;
+  if (audio.currentTime > 3) { audio.currentTime = 0; return; } // restart if well into the song
+  orderPos = (orderPos - 1 + order.length) % order.length;
+  playCurrent();
+}
+
 function closeAudio() {
   audio.pause();
   audio.removeAttribute("src");
@@ -401,14 +448,35 @@ function closeAudio() {
   player.classList.add("hidden");
   player.setAttribute("aria-hidden", "true");
   document.body.classList.remove("player-open");
+  queue = [];
+  order = [];
+  orderPos = -1;
 }
+
+prevBtn.innerHTML = ICON_PREV;
+nextBtn.innerHTML = ICON_NEXT;
+shuffleBtn.innerHTML = ICON_SHUFFLE;
 
 toggleBtn.onclick = () => (audio.paused ? audio.play() : audio.pause());
 playerClose.onclick = closeAudio;
+nextBtn.onclick = playNext;
+prevBtn.onclick = playPrev;
+shuffleBtn.onclick = () => {
+  shuffle = !shuffle;
+  shuffleBtn.classList.toggle("active", shuffle);
+  if (queue.length) {
+    const currentQi = order[orderPos]; // keep the current song current across reshuffle
+    buildOrder();
+    orderPos = Math.max(0, order.indexOf(currentQi));
+  }
+};
 
 audio.addEventListener("play", updatePlayIcon);
 audio.addEventListener("pause", updatePlayIcon);
-audio.addEventListener("ended", updatePlayIcon);
+audio.addEventListener("ended", () => {
+  if (order.length > 1) playNext(); // auto-advance through the queue
+  else updatePlayIcon();
+});
 
 let scrubbing = false;
 seek.addEventListener("input", () => {
