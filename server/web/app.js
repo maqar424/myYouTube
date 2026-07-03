@@ -53,7 +53,9 @@ function renderVideos(videos) {
     const cat = v.category || "video";
     const li = document.createElement("li");
     li.className = "video " + v.status;
-    const title = v.title || v.url;
+    // Spotify-imported jobs use ytsearch1:<query> URLs; show just the query
+    // until the real title arrives.
+    const title = (v.title || v.url).replace(/^ytsearch\d*:/, "");
     const progressBar =
       v.status === "downloading"
         ? `<div class="bar small"><div style="width:${v.progress || 0}%"></div></div>`
@@ -143,6 +145,14 @@ document.getElementById("dl-form").addEventListener("submit", async (e) => {
   const input = document.getElementById("url");
   const url = input.value.trim();
   if (!url) return;
+
+  // Spotify links can't be downloaded directly — hand them to the importer.
+  if (/spotify\.com|^spotify:/.test(url)) {
+    input.value = "";
+    openSpotifyDialog(url);
+    return;
+  }
+
   const category =
     document.querySelector('input[name="category"]:checked')?.value || "video";
 
@@ -201,6 +211,47 @@ updateBtn.addEventListener("click", async () => {
     updateBtn.textContent = "Update";
   }
 });
+
+// ---- Spotify playlist import ----
+const spotifyModal = document.getElementById("spotify-modal");
+const spotifyUrlInput = document.getElementById("spotify-url");
+const spotifyImportBtn = document.getElementById("spotify-import");
+
+function openSpotifyDialog(prefill) {
+  spotifyUrlInput.value = prefill || "";
+  spotifyModal.classList.remove("hidden");
+  spotifyUrlInput.focus();
+}
+function closeSpotifyDialog() {
+  spotifyModal.classList.add("hidden");
+}
+
+document.getElementById("spotify-btn").onclick = () => openSpotifyDialog();
+document.getElementById("spotify-cancel").onclick = closeSpotifyDialog;
+document.getElementById("spotify-backdrop").onclick = closeSpotifyDialog;
+spotifyUrlInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); spotifyImportBtn.click(); }
+});
+
+spotifyImportBtn.onclick = async () => {
+  const url = spotifyUrlInput.value.trim();
+  if (!url) return;
+  spotifyImportBtn.disabled = true;
+  spotifyImportBtn.textContent = "Importing…";
+  try {
+    const r = await api("/api/spotify-import", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    });
+    closeSpotifyDialog();
+    alert(`Importing “${r.name}” — ${r.count} song(s) queued. The playlist appears in the gallery as songs finish.`);
+    refresh();
+  } catch (e) {
+    alert("Import failed: " + e.message);
+  }
+  spotifyImportBtn.disabled = false;
+  spotifyImportBtn.textContent = "Import";
+};
 
 refresh();
 setInterval(refresh, 2000);

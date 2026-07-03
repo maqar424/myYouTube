@@ -26,6 +26,10 @@ class Settings:
         self.merge_format = os.getenv("MERGE_FORMAT", "mp4")
         # Audio codec for music/podcast (audio-only) downloads.
         self.audio_format = os.getenv("AUDIO_FORMAT", "mp3")
+        # Spotify Web API credentials (client-credentials flow) for playlist
+        # imports. Empty = Spotify import disabled with a helpful error.
+        self.spotify_client_id = os.getenv("SPOTIFY_CLIENT_ID", "").strip()
+        self.spotify_client_secret = os.getenv("SPOTIFY_CLIENT_SECRET", "").strip()
 
 
 settings = Settings()

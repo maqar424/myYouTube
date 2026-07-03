@@ -47,6 +47,7 @@
         <label><input type="radio" name="category" value="podcast" /><span>Podcast</span></label>
       </div>
       <button type="submit">Download</button>
+      <button type="button" id="spotify-btn" class="btn spotify" title="Import Spotify playlist" aria-label="Import Spotify playlist">+</button>
     </div>
   </form>
 
@@ -62,6 +63,19 @@
         <button id="pl-all" class="btn" type="button">Entire playlist</button>
       </div>
       <button id="pl-cancel" class="dialog-cancel" type="button">Cancel</button>
+    </div>
+  </div>
+
+  <div id="spotify-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="spotify-backdrop"></div>
+    <div class="dialog">
+      <p class="dialog-title">Import Spotify playlist</p>
+      <p class="dialog-text">Each song is matched on YouTube and downloaded as Music. The playlist shows up in the gallery.</p>
+      <input id="spotify-url" type="url" inputmode="url" placeholder="https://open.spotify.com/playlist/…" />
+      <div class="dialog-actions">
+        <button id="spotify-import" class="btn spotify-solid" type="button">Import</button>
+      </div>
+      <button id="spotify-cancel" class="dialog-cancel" type="button">Cancel</button>
     </div>
   </div>
 

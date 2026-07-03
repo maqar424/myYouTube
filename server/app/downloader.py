@@ -189,6 +189,13 @@ def _run_job(job_id: str) -> None:
     with yt_dlp.YoutubeDL(_build_opts(job_id, category)) as ydl:
         info = ydl.extract_info(video["url"], download=True)
 
+    # Search URLs (ytsearch1:...) return a one-entry playlist wrapper; unwrap
+    # it so title/artist/duration come from the actual video.
+    info = info or {}
+    if info.get("entries"):
+        entries = [e for e in info["entries"] if e]
+        info = entries[0] if entries else {}
+
     filepath = _resolve_media(job_id)
     if not filepath:
         db.update_video(job_id, status="error", error="Download produced no file")

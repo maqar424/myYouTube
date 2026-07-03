@@ -1,5 +1,6 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
+requests==2.32.3
 # Unpinned on purpose: YouTube changes often and yt-dlp must stay current.
 # Update with: docker compose exec myyoutube pip install -U yt-dlp && docker compose restart
 # Or force a fresh copy on rebuild: docker compose build --no-cache

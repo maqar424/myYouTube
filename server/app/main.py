@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import settings
-from . import db, downloader, storage
+from . import db, downloader, spotify, storage
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -144,6 +144,29 @@ def post_download(req: DownloadRequest):
         return {"status": "expanding", "category": category}
     job_id = downloader.enqueue(url, category)
     return {"id": job_id, "status": "queued", "category": category}
+
+
+class SpotifyImportRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/spotify-import", dependencies=[Depends(require_token)])
+def spotify_import(req: SpotifyImportRequest):
+    """Import a Spotify playlist: read its track list, create a matching
+    playlist here, and enqueue one YouTube search-download per track."""
+    try:
+        data = spotify.fetch_playlist(req.url.strip())
+    except spotify.SpotifyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not data["tracks"]:
+        raise HTTPException(status_code=400, detail="Playlist has no importable tracks")
+
+    playlist = db.create_playlist(data["name"], source="spotify")
+    for t in data["tracks"]:
+        query = f"{t['artist']} - {t['title']}" if t["artist"] else t["title"]
+        job_id = downloader.enqueue(f"ytsearch1:{query}", "music")
+        db.add_playlist_item(playlist["id"], job_id)
+    return {"id": playlist["id"], "name": data["name"], "count": len(data["tracks"])}
 
 
 @app.delete("/api/videos/{video_id}", dependencies=[Depends(require_token)])

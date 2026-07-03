@@ -33,6 +33,10 @@ and you can save the result back to your phone — all over your private
 - **One-tap yt-dlp update** — an Update link in the header upgrades yt-dlp and
   restarts the app to apply it (hover shows the current version; yt-dlp also
   auto-updates on every container start).
+- **Spotify playlist import** — the green **+** next to Download takes a
+  Spotify playlist URL; every track is matched on YouTube, downloaded as
+  Music, and collected into a playlist in the gallery (needs free API
+  credentials, see below).
 
 ## Layout
 
@@ -116,11 +120,27 @@ that behind a firewall you trust.
 | `MERGE_FORMAT` | `mp4`                         | Output container for video. Use `mkv` for exotic 4K codecs. |
 | `AUDIO_FORMAT` | `mp3`                         | Codec for Music/Podcast (audio-only) downloads. |
 | `API_TOKEN`    | *(empty)*                     | Optional shared secret. Empty = rely on Tailscale only. |
+| `SPOTIFY_CLIENT_ID` | *(empty)*                | Spotify API app id — enables the Spotify import. |
+| `SPOTIFY_CLIENT_SECRET` | *(empty)*           | Spotify API app secret. |
+
+### Spotify import setup (optional, one-time)
+
+Spotify audio is DRM-protected, so tracks are **matched and downloaded from
+YouTube** — Spotify is only used to read the playlist's track list.
+
+1. Go to <https://developer.spotify.com/dashboard> (free account) → **Create app**
+   (any name; any redirect URI, e.g. `http://localhost`).
+2. Copy the **Client ID** and **Client Secret** into `.env`.
+3. `docker compose up -d --build` — the green **+** on the download page now works.
+
+Notes: the playlist must be **public** (or unlisted); matching is best-effort
+(~expect the occasional live version or music video), and imports count against
+the 25 GB cap like any other download.
 
 ## Notes & limits
 
-- **One video per URL.** Playlists are not expanded (`noplaylist`); only the
-  referenced video is fetched.
+- **YouTube playlists are supported.** A bare playlist URL downloads every
+  entry; a video-inside-a-playlist URL asks whether you want one video or all.
 - **Best quality eats space.** With `MAX_BYTES=25G`, a few 4K videos can fill
   the budget and trigger FIFO eviction of older ones. Lower `YTDLP_FORMAT`
   (e.g. `bestvideo[height<=1080]+bestaudio/best`) if you want more headroom.

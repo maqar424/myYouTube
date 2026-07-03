@@ -8,6 +8,7 @@
   --blue: #3b82f6;      /* podcast / blue */
   --ok: #34c759;        /* music / green */
   --dl: #8b5cf6;        /* download button — pairs with red/green/blue */
+  --spotify: #1db954;   /* Spotify brand green (import button) */
   --cat: var(--accent); /* active-category accent (set per gallery tab) */
   --radius: 14px;
 }
@@ -128,6 +129,10 @@ h1 { font-size: 22px; margin: 0; }
 #url:focus { outline: none; border-color: var(--blue); }
 .form-row { display: flex; gap: 8px; }
 .form-row button { white-space: nowrap; }
+
+/* Spotify import: the green "+" next to Download, and the Import button */
+.btn.spotify { background: var(--spotify); padding: 13px 16px; font-size: 18px; line-height: 1; }
+.btn.spotify-solid { background: var(--spotify); }
 
 /* segmented category control */
 .segment { display: flex; flex: 1; background: var(--surface); border-radius: var(--radius); padding: 4px; gap: 4px; }
@@ -313,6 +318,12 @@ body.player-open { padding-bottom: 120px; }
 }
 .dialog-title { font-size: 16px; font-weight: 600; margin: 0; }
 .dialog-text { font-size: 14px; color: var(--muted); margin: 0 0 4px; }
+.dialog input {
+  width: 100%; padding: 12px 14px;
+  border-radius: 10px; border: 1px solid var(--surface-2);
+  background: var(--bg); color: var(--text); font-size: 15px;
+}
+.dialog input:focus { outline: none; border-color: var(--spotify); }
 .dialog-actions { display: flex; gap: 8px; }
 .dialog-actions .btn { flex: 1; justify-content: center; }
 .btn.secondary { background: var(--surface-2); color: var(--text); }
