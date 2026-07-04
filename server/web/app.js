@@ -30,11 +30,11 @@ function renderStatus(s) {
   if (ub) ub.title = "yt-dlp " + (s.ytdlp_version || "—");
 }
 
-function metaFor(v) {
+function metaFor(v, ahead) {
   switch (v.status) {
     case "done": return `${fmtBytes(v.bytes)} · ${fmtDuration(v.duration)}`;
     case "downloading": return `Downloading… ${v.progress || 0}%`;
-    case "queued": return "Queued…";
+    case "queued": return ahead ? `Queued · ${ahead} ahead` : "Queued · next up";
     case "error": return "Error: " + (v.error || "failed");
     default: return v.status;
   }
@@ -49,7 +49,7 @@ function renderVideos(videos) {
     return;
   }
 
-  for (const v of videos) {
+  for (const [i, v] of videos.entries()) {
     const cat = v.category || "video";
     const li = document.createElement("li");
     li.className = "video " + v.status;
@@ -59,13 +59,21 @@ function renderVideos(videos) {
         ? `<div class="bar small"><div style="width:${v.progress || 0}%"></div></div>`
         : "";
 
+    // List is newest-first; jobs run oldest-first, so "ahead" = active items below.
+    const ahead =
+      v.status === "queued"
+        ? videos.slice(i + 1).filter(
+            (x) => x.status === "queued" || x.status === "downloading"
+          ).length
+        : 0;
+
     li.innerHTML = `
       <div class="info">
         <div class="title-row">
           <span class="badge cat-${cat}">${cat}</span>
           <span class="title">${escapeHtml(title)}</span>
         </div>
-        <div class="meta">${escapeHtml(metaFor(v))}</div>
+        <div class="meta">${escapeHtml(metaFor(v, ahead))}</div>
         ${progressBar}
       </div>
       <div class="actions"></div>`;
@@ -81,6 +89,23 @@ function renderVideos(videos) {
       actions.appendChild(a);
     }
 
+    if (v.status === "error") {
+      const retry = document.createElement("button");
+      retry.className = "btn retry";
+      retry.textContent = "Retry";
+      retry.onclick = async () => {
+        retry.disabled = true;
+        try {
+          await api(`/api/videos/${v.id}/retry`, { method: "POST" });
+          refresh();
+        } catch (e) {
+          toast("Retry failed: " + e.message, "error");
+          retry.disabled = false;
+        }
+      };
+      actions.appendChild(retry);
+    }
+
     const del = document.createElement("button");
     del.className = "btn del";
     del.textContent = "Delete";
@@ -89,7 +114,7 @@ function renderVideos(videos) {
         await api(`/api/videos/${v.id}`, { method: "DELETE" });
         refresh();
       } catch (e) {
-        alert("Failed: " + e.message);
+        toast("Delete failed: " + e.message, "error");
       }
     };
     actions.appendChild(del);
@@ -164,7 +189,7 @@ document.getElementById("dl-form").addEventListener("submit", async (e) => {
     input.value = "";
     refresh();
   } catch (err) {
-    alert("Failed: " + err.message);
+    toast("Download failed: " + err.message, "error");
   }
 });
 
@@ -184,7 +209,7 @@ updateBtn.addEventListener("click", async () => {
     const r = await api("/api/update-ytdlp", { method: "POST" });
     if (r.changed) {
       updateBtn.textContent = "Restarting…";
-      alert(`yt-dlp updated: ${r.old} → ${r.new}. The app is restarting.`);
+      toast(`yt-dlp updated: ${r.old} → ${r.new} — restarting…`);
       // The server is restarting; the poll loop reconnects on its own.
       setTimeout(() => {
         updateBtn.disabled = false;
@@ -193,14 +218,18 @@ updateBtn.addEventListener("click", async () => {
     } else {
       updateBtn.disabled = false;
       updateBtn.textContent = "Update";
-      alert(`yt-dlp is already current (${r.new}).`);
+      toast(`yt-dlp is already current (${r.new}).`);
     }
   } catch (e) {
-    alert("Update failed: " + e.message);
+    toast("Update failed: " + e.message, "error");
     updateBtn.disabled = false;
     updateBtn.textContent = "Update";
   }
 });
 
+// Poll only while the tab is visible (saves phone battery); catch up on return.
 refresh();
-setInterval(refresh, 2000);
+setInterval(() => { if (!document.hidden) refresh(); }, 2000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refresh();
+});

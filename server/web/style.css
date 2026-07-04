@@ -138,7 +138,10 @@ h1 { font-size: 22px; margin: 0; }
   padding: 9px 4px; border-radius: 10px;
   font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
 }
-.segment input:checked + span { background: var(--accent); color: #fff; }
+/* selected category takes its own color: video red, music green, podcast blue */
+.segment label:nth-child(1) input:checked + span { background: var(--accent); color: #fff; }
+.segment label:nth-child(2) input:checked + span { background: var(--ok); color: #fff; }
+.segment label:nth-child(3) input:checked + span { background: var(--blue); color: #fff; }
 
 button, .btn {
   border: none;
@@ -195,6 +198,7 @@ html[data-theme="light"] .badge.cat-podcast { color: #2563c9; }
 .actions .btn { padding: 9px 13px; font-size: 13px; }
 .btn.dl { background: var(--dl); }
 .btn.del { background: var(--surface-2); color: var(--text); }
+.btn.retry { background: var(--blue); }
 
 .empty { color: var(--muted); text-align: center; padding: 36px 12px; grid-column: 1 / -1; }
 
@@ -226,6 +230,7 @@ html[data-theme="light"] .badge.cat-podcast { color: #2563c9; }
   padding: 4px 0 28px;
 }
 .card { background: var(--surface); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+.card.playing { outline: 2px solid var(--cat); outline-offset: -2px; }
 .thumb { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--surface-2); display: block; }
 .thumb.placeholder { display: flex; align-items: center; justify-content: center; font-size: 34px; }
 .card-body { padding: 10px 12px 8px; flex: 1; }
@@ -294,6 +299,26 @@ html[data-theme="light"] .badge.cat-podcast { color: #2563c9; }
 .player-time { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 body.player-open { padding-bottom: 120px; }
+
+/* ---- toasts ---- */
+#toasts {
+  position: fixed; left: 16px; right: 16px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  z-index: 40; pointer-events: none;
+}
+body.player-open #toasts { bottom: 132px; }
+.toast {
+  background: var(--surface-2); color: var(--text);
+  font-size: 14px; font-weight: 500;
+  padding: 10px 16px; border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .35);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .25s, transform .25s;
+}
+.toast.show { opacity: 1; transform: none; }
+.toast.error { background: var(--accent); color: #fff; }
 
 /* ---- music grouped by artist ---- */
 .grid.grouped { display: block; padding-bottom: 28px; }

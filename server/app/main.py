@@ -146,6 +146,17 @@ def post_download(req: DownloadRequest):
     return {"id": job_id, "status": "queued", "category": category}
 
 
+@app.post("/api/videos/{video_id}/retry", dependencies=[Depends(require_token)])
+def retry_video(video_id: str):
+    video = db.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Not found")
+    if video["status"] != "error":
+        raise HTTPException(status_code=400, detail="Only failed downloads can be retried")
+    downloader.retry(video_id)
+    return {"id": video_id, "status": "queued"}
+
+
 @app.delete("/api/videos/{video_id}", dependencies=[Depends(require_token)])
 def delete_video(video_id: str):
     video = db.get_video(video_id)

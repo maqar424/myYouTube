@@ -98,6 +98,12 @@ def requeue_pending() -> None:
             _job_queue.put(video["id"])
 
 
+def retry(video_id: str) -> None:
+    """Re-queue a failed download (keeps its id, category and playlist links)."""
+    db.update_video(video_id, status="queued", progress=0, error=None)
+    _job_queue.put(video_id)
+
+
 def _worker_loop() -> None:
     while True:
         job_id = _job_queue.get()

@@ -65,17 +65,44 @@ function escapeHtml(s) {
   );
 }
 
+// ---- toast notifications (non-blocking replacement for alert()) ----
+function toast(msg, type) {
+  let box = document.getElementById("toasts");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "toasts";
+    document.body.appendChild(box);
+  }
+  const t = document.createElement("div");
+  t.className = "toast" + (type ? " " + type : "");
+  t.textContent = msg;
+  box.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("show"));
+  setTimeout(() => {
+    t.classList.remove("show");
+    setTimeout(() => t.remove(), 300);
+  }, 3500);
+}
+
 // ---- dark / light theme (toggle present on both pages) ----
 const THEME_KEY = "myyt_theme";
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  // Keep Android's status/title bar in sync with the page background.
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = theme === "light" ? "#f4f4f6" : "#0f0f0f";
+}
+
 (function initTheme() {
   const sw = document.getElementById("theme-switch");
   const theme = document.documentElement.dataset.theme || localStorage.getItem(THEME_KEY) || "dark";
-  document.documentElement.dataset.theme = theme;
+  applyTheme(theme);
   if (!sw) return;
   sw.checked = theme === "dark"; // switch right = Dark
   sw.addEventListener("change", () => {
     const next = sw.checked ? "dark" : "light";
-    document.documentElement.dataset.theme = next;
+    applyTheme(next);
     try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
   });
 })();
