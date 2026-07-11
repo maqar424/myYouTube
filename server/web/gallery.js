@@ -172,7 +172,7 @@ function renderStrip(songs, cardOpts) {
 // ---------- render ----------
 function render() {
   document.body.dataset.cat = currentCat; // drives the per-tab accent (--cat)
-  grid.className = "grid";
+  grid.className = "grid gal-only";
   grid.innerHTML = "";
 
   if (currentCat === "music") {
@@ -194,7 +194,7 @@ function render() {
 }
 
 function renderMusic() {
-  grid.className = "grid grouped";
+  grid.className = "grid grouped gal-only";
   if (musicMode === "playlists") {
     renderPlaylists();
   } else {

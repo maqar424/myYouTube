@@ -13,10 +13,10 @@
   <link rel="stylesheet" href="/style.css" />
   <title>myYouTube</title>
 </head>
-<body>
+<body data-view="download">
   <header>
     <div class="topbar">
-      <h1>myYouTube</h1>
+      <h1 id="page-title">myYouTube</h1>
       <div class="theme-toggle">
         <span class="theme-label">Light</span>
         <label class="switch"><input type="checkbox" id="theme-switch" aria-label="Toggle dark mode" /><span class="slider"></span></label>
@@ -24,10 +24,12 @@
       </div>
       <nav class="nav">
         <button id="update-btn" class="navlink plain" type="button">Update</button>
-        <a class="navlink" href="/gallery.html">Gallery &rarr;</a>
+        <button id="view-toggle" class="navlink" type="button">Gallery &rarr;</button>
       </nav>
     </div>
-    <div id="storage">
+
+    <!-- download view header -->
+    <div id="storage" class="dl-only">
       <div class="bar" id="storage-bar">
         <div class="seg cat-video" id="seg-video"></div>
         <div class="seg cat-music" id="seg-music"></div>
@@ -35,10 +37,24 @@
       </div>
       <span id="storage-text">—</span>
     </div>
-    <div id="storage-legend" class="legend"></div>
+    <div id="storage-legend" class="legend dl-only"></div>
+
+    <!-- gallery view header -->
+    <nav class="tabs gal-only" id="tabs">
+      <button class="tab active" data-cat="video">Videos</button>
+      <button class="tab" data-cat="music">Music</button>
+      <button class="tab" data-cat="podcast">Podcasts</button>
+    </nav>
+    <div class="tabs sub-tabs hidden gal-only" id="music-modes">
+      <button class="tab active" type="button" data-mode="allsongs">All Songs</button>
+      <button class="tab" type="button" data-mode="playlists">Playlists</button>
+      <button class="tab mode-add hidden" type="button" id="mode-add" aria-label="New playlist">+</button>
+    </div>
+    <input id="search" class="search gal-only" type="search" placeholder="Search…" aria-label="Search" />
   </header>
 
-  <form id="dl-form" autocomplete="off">
+  <!-- download view -->
+  <form id="dl-form" class="dl-only" autocomplete="off">
     <input id="url" type="url" inputmode="url" placeholder="Paste a YouTube URL…" required />
     <div class="form-row">
       <div class="segment" id="category">
@@ -49,9 +65,12 @@
       <button type="submit">Download</button>
     </div>
   </form>
+  <ul id="videos" class="dl-only"></ul>
 
-  <ul id="videos"></ul>
+  <!-- gallery view -->
+  <div id="grid" class="grid gal-only"></div>
 
+  <!-- dialogs -->
   <div id="playlist-modal" class="modal hidden" aria-hidden="true">
     <div class="modal-backdrop" id="playlist-backdrop"></div>
     <div class="dialog">
@@ -65,7 +84,46 @@
     </div>
   </div>
 
+  <div id="video-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-body">
+      <button id="modal-close" class="modal-close" type="button" aria-label="Close">&#10005;</button>
+      <video id="video" controls playsinline></video>
+    </div>
+  </div>
+
+  <div id="addsongs-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" id="addsongs-backdrop"></div>
+    <div class="sheet">
+      <div class="sheet-head">
+        <input id="addsongs-name" class="sheet-name" type="text" aria-label="Playlist name" />
+        <button id="addsongs-close" class="sheet-done" type="button">Done</button>
+      </div>
+      <input id="addsongs-search" class="sheet-search" type="search" placeholder="Search songs…" aria-label="Search songs" />
+      <div id="addsongs-list" class="addsongs-list"></div>
+    </div>
+  </div>
+
+  <!-- Bottom-pinned audio player: lives outside both views, so switching
+       between Download and Gallery never interrupts playback. -->
+  <div id="player" class="player hidden" aria-hidden="true">
+    <div class="player-row1">
+      <div id="player-title" class="player-title"></div>
+      <button id="player-close" class="player-btn" type="button" aria-label="Close player">&#10005;</button>
+    </div>
+    <div class="player-row2">
+      <button id="player-shuffle" class="player-btn" type="button" aria-label="Toggle shuffle"></button>
+      <button id="player-prev" class="player-btn" type="button" aria-label="Previous song"></button>
+      <button id="player-toggle" class="player-btn" type="button" aria-label="Play or pause"></button>
+      <button id="player-next" class="player-btn" type="button" aria-label="Next song"></button>
+      <input id="player-seek" class="player-seek" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek" />
+      <span id="player-time" class="player-time">0:00</span>
+    </div>
+    <audio id="audio" preload="metadata"></audio>
+  </div>
+
   <script src="/common.js"></script>
   <script src="/app.js"></script>
+  <script src="/gallery.js"></script>
 </body>
 </html>

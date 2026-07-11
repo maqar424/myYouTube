@@ -28,6 +28,11 @@ body[data-cat="podcast"] { --cat: var(--blue); }
 
 * { box-sizing: border-box; }
 
+/* Single-page views: only the active view's elements are shown. The audio
+   player and dialogs carry no view class, so they persist across switches. */
+body[data-view="download"] .gal-only { display: none !important; }
+body[data-view="gallery"] .dl-only { display: none !important; }
+
 /* Hide the page's vertical scrollbar (visible only on desktop; mobile uses
    transient overlay bars). Scrolling still works via wheel/trackpad/keys. */
 html, body { scrollbar-width: none; }              /* Firefox */
