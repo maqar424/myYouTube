@@ -106,3 +106,29 @@ function applyTheme(theme) {
     try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
   });
 })();
+
+// ---- view router (single page: Download <-> Gallery) ----
+// Both views live on one page so the audio player is never unloaded when
+// switching. The hash (#gallery) is the source of truth; back button works.
+(function initViews() {
+  const toggle = document.getElementById("view-toggle");
+  if (!toggle) return; // not the SPA page (e.g. the gallery.html redirect stub)
+
+  function setView(view) {
+    document.body.dataset.view = view;
+    document.getElementById("page-title").textContent =
+      view === "gallery" ? "Gallery" : "myYouTube";
+    toggle.innerHTML = view === "gallery" ? "Download more" : "Gallery &rarr;";
+    document.title = view === "gallery" ? "Gallery — myYouTube" : "myYouTube";
+  }
+
+  function applyHash() {
+    setView(location.hash === "#gallery" ? "gallery" : "download");
+  }
+
+  toggle.addEventListener("click", () => {
+    location.hash = document.body.dataset.view === "gallery" ? "#download" : "#gallery";
+  });
+  window.addEventListener("hashchange", applyHash);
+  applyHash();
+})();

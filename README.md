@@ -54,12 +54,12 @@ myYouTube/
     │   ├── storage.py      # size accounting + FIFO eviction
     │   ├── db.py           # SQLite metadata (category, thumbnail, ...)
     │   └── config.py
-    └── web/                # the PWA
-        ├── index.html      # download page (URL + category picker)
-        ├── gallery.html    # gallery grid, one tab per category
-        ├── common.js       # shared JS helpers
-        ├── app.js          # landing page logic
-        ├── gallery.js      # gallery logic
+    └── web/                # the PWA (single page: Download + Gallery views)
+        ├── index.html      # both views; the audio player survives switches
+        ├── gallery.html    # redirect stub for old bookmarks -> /#gallery
+        ├── common.js       # shared helpers + theme + view router
+        ├── app.js          # download view logic
+        ├── gallery.js      # gallery view logic
         ├── style.css
         └── manifest.json
 ```
@@ -108,7 +108,8 @@ that behind a firewall you trust.
 4. Pick a category (**Video / Music / Podcast**), paste a YouTube URL, and hit
    **Download**. Watch progress on the landing page.
 5. Open **Gallery** (top-right link) to browse finished items by category with
-   thumbnails, and tap **Save** to pull a file onto your phone.
+   thumbnails, and tap **Save** to pull a file onto your phone. Music keeps
+   playing when you switch back to the download view.
 
 ## Configuration (`.env`)
 
