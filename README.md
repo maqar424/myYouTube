@@ -33,6 +33,11 @@ and you can save the result back to your phone — all over your private
 - **One-tap yt-dlp update** — an Update link in the header upgrades yt-dlp and
   restarts the app to apply it (hover shows the current version; yt-dlp also
   auto-updates on every container start).
+- **Lock-screen playback controls** — the music player integrates with the
+  phone's media notification (artwork, play/pause, next/previous, headset
+  buttons).
+- **Retry failed downloads** — a Retry button re-queues an errored download
+  without re-pasting the URL.
 
 ## Layout
 

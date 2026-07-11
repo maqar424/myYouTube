@@ -29,6 +29,8 @@ let queue = [];     // songs in the row a track was started from
 let order = [];     // playback order: indices into queue (shuffled or 0..n)
 let orderPos = -1;  // current position within `order`
 let shuffle = false;
+let currentPlayingId = null; // highlights the playing card
+let errorStreak = 0;         // consecutive playback failures (stops runaway skipping)
 
 // picker state
 let addPlaylistId = null;
@@ -98,6 +100,8 @@ function buildCard(v, opts = {}) {
   const cat = v.category || "video";
   const card = document.createElement("div");
   card.className = "card";
+  card.dataset.id = v.id;
+  if (v.id === currentPlayingId) card.classList.add("playing");
 
   const thumb = v.thumbnail
     ? `<img class="thumb" src="${thumbUrl(v.id)}" loading="lazy" alt="" />`
@@ -126,7 +130,7 @@ function buildCard(v, opts = {}) {
       }
       load();
     } catch (e) {
-      alert("Failed: " + e.message);
+      toast((opts.playlistId ? "Remove failed: " : "Delete failed: ") + e.message, "error");
     }
   };
 
@@ -270,7 +274,7 @@ async function createPlaylistFlow() {
     musicMode = "playlists";
     await load();
   } catch (e) {
-    alert("Failed: " + e.message);
+    toast("Create failed: " + e.message, "error");
   }
 }
 
@@ -280,7 +284,7 @@ async function deletePlaylistFlow(id, name) {
     await api(`/api/playlists/${id}`, { method: "DELETE" });
     await load();
   } catch (e) {
-    alert("Failed: " + e.message);
+    toast("Delete failed: " + e.message, "error");
   }
 }
 
@@ -336,7 +340,7 @@ function renderAddList() {
         }
         setState(addMemberIds.has(v.id));
       } catch (e) {
-        alert("Failed: " + e.message);
+        toast("Failed: " + e.message, "error");
       }
       btn.disabled = false;
     };
@@ -353,7 +357,7 @@ async function commitRename() {
     await api(`/api/playlists/${addPlaylistId}`, { method: "PATCH", body: JSON.stringify({ name: newName }) });
     if (pl) pl.name = newName;
   } catch (e) {
-    alert("Rename failed: " + e.message);
+    toast("Rename failed: " + e.message, "error");
   }
 }
 
@@ -393,6 +397,31 @@ modalBackdrop.onclick = closeVideo;
 // ---------- bottom audio player ----------
 function updatePlayIcon() {
   toggleBtn.innerHTML = audio.paused ? ICON_PLAY : ICON_PAUSE;
+  if ("mediaSession" in navigator) {
+    navigator.mediaSession.playbackState = audio.paused ? "paused" : "playing";
+  }
+}
+
+function markPlaying() {
+  document.querySelectorAll(".card.playing").forEach((c) => c.classList.remove("playing"));
+  if (!currentPlayingId) return;
+  document
+    .querySelectorAll(`.card[data-id="${currentPlayingId}"]`)
+    .forEach((c) => c.classList.add("playing"));
+}
+
+// Lock-screen / notification metadata so Android's media controls show the
+// track (with the thumbnail as artwork) and headset buttons work.
+function updateMediaSession(v) {
+  if (!("mediaSession" in navigator)) return;
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: v.title || v.url,
+    artist: v.artist || "",
+    album: "myYouTube",
+    artwork: v.thumbnail
+      ? [{ src: thumbUrl(v.id), sizes: "1280x720", type: "image/jpeg" }]
+      : [],
+  });
 }
 
 function buildOrder() {
@@ -417,6 +446,9 @@ function playCurrent() {
   player.setAttribute("aria-hidden", "false");
   document.body.classList.add("player-open");
   audio.play().catch(() => {});
+  currentPlayingId = v.id;
+  markPlaying();
+  updateMediaSession(v);
   updatePlayIcon();
 }
 
@@ -452,6 +484,9 @@ function closeAudio() {
   queue = [];
   order = [];
   orderPos = -1;
+  currentPlayingId = null;
+  markPlaying();
+  if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
 }
 
 prevBtn.innerHTML = ICON_PREV;
@@ -474,10 +509,35 @@ shuffleBtn.onclick = () => {
 
 audio.addEventListener("play", updatePlayIcon);
 audio.addEventListener("pause", updatePlayIcon);
+audio.addEventListener("playing", () => { errorStreak = 0; });
 audio.addEventListener("ended", () => {
   if (order.length > 1) playNext(); // auto-advance through the queue
   else updatePlayIcon();
 });
+
+// A track that can't play (evicted file, network hiccup) is skipped instead of
+// silently stopping the queue; give up after a full failed loop.
+audio.addEventListener("error", () => {
+  if (!audio.getAttribute("src") || player.classList.contains("hidden")) return;
+  errorStreak++;
+  const v = queue[order[orderPos]];
+  const name = v ? (v.title || v.url) : "track";
+  if (order.length > 1 && errorStreak < order.length) {
+    toast(`Can't play “${name}” — skipping`, "error");
+    playNext();
+  } else {
+    toast(`Can't play “${name}”`, "error");
+    closeAudio();
+  }
+});
+
+// Lock-screen / headset buttons drive the same queue.
+if ("mediaSession" in navigator) {
+  navigator.mediaSession.setActionHandler("play", () => audio.play());
+  navigator.mediaSession.setActionHandler("pause", () => audio.pause());
+  navigator.mediaSession.setActionHandler("previoustrack", playPrev);
+  navigator.mediaSession.setActionHandler("nexttrack", playNext);
+}
 
 let scrubbing = false;
 seek.addEventListener("input", () => {
@@ -593,5 +653,9 @@ document.getElementById("tabs").addEventListener("click", (e) => {
   render();
 });
 
+// Poll only while the tab is visible (saves phone battery); catch up on return.
 load();
-setInterval(load, 4000);
+setInterval(() => { if (!document.hidden) load(); }, 4000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) load();
+});
