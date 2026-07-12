@@ -17,8 +17,7 @@ const ICON_PREV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="current
 const ICON_NEXT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 6v12l9-6z"/><path d="M15.8 6H18v12h-2.2z"/></svg>';
 const ICON_SHUFFLE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>';
 const ICON_CHEV_UP = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
-const ICON_ROW_UP = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
-const ICON_ROW_DOWN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+const ICON_DRAG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg>';
 
 let allVideos = [];
 let playlists = [];
@@ -544,11 +543,15 @@ function renderQueue() {
     const idx = pos + 1 + i; // absolute position in `queue`
     const row = document.createElement("div");
     row.className = "pq-row";
+    row.dataset.qidx = idx;
     row.innerHTML = `
+      <span class="pq-num">${i + 1}</span>
+      <button class="pq-btn pq-handle" type="button" aria-label="Drag to reorder">${ICON_DRAG}</button>
       <div class="pq-info">
         <div class="pq-title">${escapeHtml(v.title || v.url)}</div>
         <div class="pq-artist">${escapeHtml(v.artist || "")}</div>
       </div>
+      <span class="pq-eta"></span>
       <div class="pq-actions"></div>`;
 
     // tap the song to jump straight to it
@@ -557,34 +560,90 @@ function renderQueue() {
       playCurrent();
     };
 
-    const actions = row.querySelector(".pq-actions");
-    const mk = (html, label, disabled, fn) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "pq-btn";
-      b.innerHTML = html;
-      b.setAttribute("aria-label", label);
-      b.disabled = disabled;
-      b.onclick = fn;
-      actions.appendChild(b);
-    };
-    mk(ICON_ROW_UP, "Move up", i === 0, () => {
-      [queue[idx - 1], queue[idx]] = [queue[idx], queue[idx - 1]];
-      renderQueue();
-    });
-    mk(ICON_ROW_DOWN, "Move down", i === upcoming.length - 1, () => {
-      [queue[idx], queue[idx + 1]] = [queue[idx + 1], queue[idx]];
-      renderQueue();
-    });
-    mk("&#10005;", "Remove from queue", false, () => {
+    wireDrag(row, row.querySelector(".pq-handle"));
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "pq-btn";
+    del.innerHTML = "&#10005;";
+    del.setAttribute("aria-label", "Remove from queue");
+    del.onclick = () => {
       queue.splice(idx, 1);
       baseQueue = baseQueue.filter((s) => s.id !== v.id);
       renderQueue();
-    });
+    };
+    row.querySelector(".pq-actions").appendChild(del);
 
     pqList.appendChild(row);
   });
+
+  updateQueueEtas();
 }
+
+// Drag-to-reorder via pointer events (works with both mouse and touch; the
+// handle has touch-action:none so dragging it doesn't scroll the panel).
+function wireDrag(row, handle) {
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    row.classList.add("dragging");
+
+    const move = (ev) => {
+      const others = [...pqList.querySelectorAll(".pq-row:not(.dragging)")];
+      let placed = false;
+      for (const r of others) {
+        const rect = r.getBoundingClientRect();
+        if (ev.clientY < rect.top + rect.height / 2) {
+          pqList.insertBefore(row, r);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) pqList.appendChild(row);
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      row.classList.remove("dragging");
+      commitDomOrder();
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  });
+}
+
+// After a drag, the DOM rows are the source of truth for the new order.
+function commitDomOrder() {
+  const items = [...pqList.querySelectorAll(".pq-row")].map((r) => queue[+r.dataset.qidx]);
+  queue = queue.slice(0, pos + 1).concat(items);
+  renderQueue();
+}
+
+// "plays in ~N min" per upcoming row, from the current song's remaining time
+// plus the durations of everything queued before it. Refreshed on timeupdate.
+function fmtEta(sec) {
+  const m = Math.round(sec / 60);
+  return m < 1 ? "in <1 min" : `in ~${m} min`;
+}
+
+function updateQueueEtas() {
+  if (!playerExpanded || pqList.querySelector(".dragging")) return;
+  const cur = queue[pos];
+  const total = (isFinite(audio.duration) && audio.duration) || (cur && cur.duration) || 0;
+  let acc = Math.max(0, total - (audio.currentTime || 0));
+  pqList.querySelectorAll(".pq-row").forEach((r) => {
+    const span = r.querySelector(".pq-eta");
+    const v = queue[+r.dataset.qidx];
+    if (!span || !v) return;
+    const txt = fmtEta(acc);
+    if (span.textContent !== txt) span.textContent = txt;
+    acc += v.duration || 0;
+  });
+}
+
+audio.addEventListener("timeupdate", updateQueueEtas);
 
 // "+" on a song card: append to the queue (or start playing if idle).
 function addToQueue(v) {
