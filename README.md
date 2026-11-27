@@ -72,7 +72,8 @@ myYouTube/
         ├── app.js          # download view logic
         ├── gallery.js      # gallery view logic
         ├── style.css
-        └── manifest.json
+        ├── manifest.json   # app install metadata
+        └── icon*.png/svg   # app icons (normal + Android "maskable")
 ```
 
 ## Run it on the Ubuntu VM
@@ -84,38 +85,52 @@ Requirements: Docker + Docker Compose, and Tailscale already up on the VM.
 git clone git@github.com:maqar424/myYouTube.git
 cd myYouTube
 
-# 2. Configure
+# 2. Configure (defaults are fine; PUBLISH_ADDR=127.0.0.1)
 cp .env.example .env
-tailscale ip -4            # note the VM's tailnet IP, e.g. 100.x.y.z
-nano .env                  # set PUBLISH_ADDR to that IP (see below)
 
 # 3. Build and start
 docker compose up -d --build
+
+# 4. Give it an HTTPS address on your tailnet (see below)
+sudo tailscale serve --bg 8000
 
 # logs / stop
 docker compose logs -f
 docker compose down
 ```
 
-### Binding to Tailscale (recommended)
+### HTTPS with Tailscale Serve (recommended)
 
-Set `PUBLISH_ADDR` in `.env` to the VM's Tailscale IP so the service is **only**
-reachable from devices on your tailnet:
+Chrome only lets you **install** the web app (own icon, no browser bar) when
+it's served over HTTPS. Tailscale Serve gives the VM an HTTPS address with a
+valid certificate, reachable only from your tailnet:
 
-```env
-PUBLISH_ADDR=100.x.y.z      # from `tailscale ip -4`
-PORT=8000
-```
+1. In the Tailscale admin console → **DNS**: turn on **MagicDNS**, and under
+   **HTTPS Certificates** click **Enable HTTPS**. (Machine names then appear
+   in public certificate logs.)
+2. Keep `PUBLISH_ADDR=127.0.0.1` in `.env` — Serve can only forward to
+   localhost, and this way the app isn't reachable any other way. After
+   changing it, recreate the container with `docker compose up -d`.
+3. On the VM: `sudo tailscale serve --bg 8000`. It prints the URL, e.g.
+   `https://<vm-name>.<tailnet>.ts.net`. `--bg` keeps it running across
+   reboots.
+4. Check with `tailscale serve status`; undo with `tailscale serve reset`.
 
-Leaving `PUBLISH_ADDR=0.0.0.0` exposes the port on every interface — only do
-that behind a firewall you trust.
+If another app on the same VM already uses Serve on port 443, give this one
+its own port: `sudo tailscale serve --bg --https=8443 8000` →
+`https://<vm-name>.<tailnet>.ts.net:8443`.
+
+Prefer plain HTTP instead? Set `PUBLISH_ADDR` to the VM's Tailscale IP
+(`tailscale ip -4`) and open `http://<that-ip>:8000` — it works in the
+browser, but can't be installed as an app.
 
 ## Use it from your phone
 
 1. Make sure Tailscale is connected on the phone.
-2. Open `http://<vm-tailscale-ip>:8000` (or `http://<vm-name>:8000` if you use
-   MagicDNS) in Chrome.
-3. Chrome menu → **Add to Home screen** to install the PWA.
+2. Open `https://<vm-name>.<tailnet>.ts.net` (your Tailscale Serve address) in
+   Chrome.
+3. Chrome menu → **Add to Home screen** → **Install**. It then opens like an
+   app, with its own icon and without the browser bar.
 4. Pick a category (**Video / Music / Podcast**), paste a YouTube URL, and hit
    **Download**. Watch progress on the landing page.
 5. Open **Gallery** (top-right link) to browse finished items by category with
@@ -127,7 +142,7 @@ that behind a firewall you trust.
 
 | Variable       | Default                       | Meaning |
 |----------------|-------------------------------|---------|
-| `PUBLISH_ADDR` | `0.0.0.0`                     | Address the port is published on. Set to the Tailscale IP. |
+| `PUBLISH_ADDR` | `0.0.0.0`                     | Address the port is published on. Use `127.0.0.1` with Tailscale Serve (recommended). |
 | `PORT`         | `8000`                        | Host port. |
 | `MAX_BYTES`    | `25G`                         | Storage cap. Oldest videos auto-deleted (FIFO) past this. |
 | `YTDLP_FORMAT` | `bestvideo*+bestaudio/best`   | yt-dlp format selector. |
