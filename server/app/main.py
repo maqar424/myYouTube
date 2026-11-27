@@ -239,7 +239,7 @@ def update_ytdlp():
     old = downloader.running_version()
     try:
         proc = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "-U", "--no-cache-dir", "yt-dlp"],
+            [sys.executable, "-m", "pip", "install", "-U", "--no-cache-dir", "yt-dlp[default]"],
             capture_output=True, text=True, timeout=300,
         )
     except subprocess.TimeoutExpired:
