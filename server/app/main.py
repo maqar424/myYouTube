@@ -33,6 +33,19 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="myYouTube", lifespan=lifespan)
 
 
+@app.middleware("http")
+async def revalidate_ui_assets(request: Request, call_next):
+    """Make browsers revalidate the UI on every load instead of serving stale
+    cached copies (the PWA kept showing old HTML/JS after deploys). no-cache
+    still allows fast 304s via ETag/Last-Modified; media/thumbnails are
+    untouched and may cache freely."""
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path.endswith((".html", ".js", ".css", ".svg", "manifest.json")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 def require_token(request: Request) -> None:
     """Optional shared-secret check. No-op when API_TOKEN is unset.
 
