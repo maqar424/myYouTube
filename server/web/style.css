@@ -253,12 +253,14 @@ html[data-theme="light"] .badge.cat-podcast { color: #2563c9; }
 .btn.stream { background: var(--cat); }
 
 .thumb-wrap { position: relative; }
-.card-del {
-  position: absolute; top: 6px; right: 6px;
+.card-del, .card-add {
+  position: absolute; top: 6px;
   width: 30px; height: 30px; border-radius: 50%;
   background: rgba(0, 0, 0, .55); color: #fff; border: none; padding: 0;
   display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
+.card-del { right: 6px; }
+.card-add { left: 6px; }
 
 /* ---- streaming: video modal + bottom audio player ---- */
 .hidden { display: none !important; }
@@ -302,6 +304,39 @@ html[data-theme="light"] .badge.cat-podcast { color: #2563c9; }
 }
 .player-seek { flex: 1; min-width: 0; height: 4px; margin: 0; accent-color: var(--cat); cursor: pointer; }
 .player-time { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* expandable queue panel inside the player */
+.player-queue { display: none; }
+.player.expanded .player-queue {
+  display: block;
+  max-height: 42vh; overflow-y: auto;
+  border-bottom: 0.5px solid var(--surface-2);
+  padding: 2px 2px 8px; margin-bottom: 2px;
+}
+.player.expanded #player-expand svg { transform: rotate(180deg); }
+.pq-head { font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 2px; }
+.pq-row { display: flex; align-items: center; gap: 8px; padding: 7px 2px; border-radius: 10px; }
+.pq-row.dragging { background: var(--surface-2); opacity: .9; }
+.pq-num {
+  width: 18px; text-align: right; flex-shrink: 0;
+  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.pq-handle { touch-action: none; cursor: grab; }
+.pq-handle:active { cursor: grabbing; }
+.pq-eta { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.pq-info { flex: 1; min-width: 0; cursor: pointer; }
+.pq-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pq-artist { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pq-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.pq-btn {
+  background: none; border: none; color: var(--muted);
+  padding: 6px; cursor: pointer; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; line-height: 1;
+}
+.pq-btn:hover { color: var(--text); }
+.pq-btn:disabled { opacity: .3; cursor: default; }
+.pq-empty { font-size: 12px; color: var(--muted); padding: 8px 2px; }
 
 body.player-open { padding-bottom: 120px; }
 

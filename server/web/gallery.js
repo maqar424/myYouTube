@@ -16,6 +16,8 @@ const ICON_PLUS = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" s
 const ICON_PREV = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 6h2.2v12H6z"/><path d="M20 6v12l-9-6z"/></svg>';
 const ICON_NEXT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 6v12l9-6z"/><path d="M15.8 6H18v12h-2.2z"/></svg>';
 const ICON_SHUFFLE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>';
+const ICON_CHEV_UP = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+const ICON_DRAG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"/></svg>';
 
 let allVideos = [];
 let playlists = [];
@@ -24,11 +26,13 @@ let musicMode = "allsongs"; // "allsongs" | "playlists"
 let searchQuery = "";
 let lastSig = ""; // last-rendered data signature (skip idle re-renders)
 
-// audio player queue
-let queue = [];     // songs in the row a track was started from
-let order = [];     // playback order: indices into queue (shuffled or 0..n)
-let orderPos = -1;  // current position within `order`
+// audio player queue: one array in play order, edited directly by the queue
+// panel (no id appears twice; adding an already-queued song is a no-op).
+let queue = [];      // songs in play order
+let baseQueue = [];  // original un-shuffled order (restored when shuffle turns off)
+let pos = -1;        // index of the current song in `queue`
 let shuffle = false;
+let playerExpanded = false;  // queue panel open?
 let currentPlayingId = null; // highlights the playing card
 let errorStreak = 0;         // consecutive playback failures (stops runaway skipping)
 
@@ -51,6 +55,9 @@ const playerClose = document.getElementById("player-close");
 const shuffleBtn = document.getElementById("player-shuffle");
 const prevBtn = document.getElementById("player-prev");
 const nextBtn = document.getElementById("player-next");
+const expandBtn = document.getElementById("player-expand");
+const pqHead = document.getElementById("pq-head");
+const pqList = document.getElementById("pq-list");
 const modal = document.getElementById("video-modal");
 const video = document.getElementById("video");
 const modalClose = document.getElementById("modal-close");
@@ -133,6 +140,18 @@ function buildCard(v, opts = {}) {
       toast((opts.playlistId ? "Remove failed: " : "Delete failed: ") + e.message, "error");
     }
   };
+
+  // "+" (top-left, mirroring the trash can): add this song to the play queue.
+  if (cat === "music" || cat === "podcast") {
+    const add = document.createElement("button");
+    add.className = "card-add";
+    add.type = "button";
+    add.title = "Add to queue";
+    add.setAttribute("aria-label", "Add to queue");
+    add.innerHTML = ICON_PLUS;
+    add.onclick = () => addToQueue(v);
+    card.querySelector(".thumb-wrap").appendChild(add);
+  }
 
   const actions = card.querySelector(".actions");
 
@@ -424,19 +443,26 @@ function updateMediaSession(v) {
   });
 }
 
-function buildOrder() {
-  const idx = queue.map((_, i) => i);
-  if (shuffle) {
-    for (let i = idx.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [idx[i], idx[j]] = [idx[j], idx[i]];
-    }
+function shuffleUpcoming() {
+  // Fisher-Yates on the not-yet-played tail; the current song stays put.
+  const tail = queue.slice(pos + 1);
+  for (let i = tail.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [tail[i], tail[j]] = [tail[j], tail[i]];
   }
-  order = idx;
+  queue = queue.slice(0, pos + 1).concat(tail);
+}
+
+function restoreUpcoming() {
+  // Put the upcoming songs back into their original (baseQueue) order.
+  const upcomingIds = new Set(queue.slice(pos + 1).map((s) => s.id));
+  queue = queue
+    .slice(0, pos + 1)
+    .concat(baseQueue.filter((s) => upcomingIds.has(s.id)));
 }
 
 function playCurrent() {
-  const v = queue[order[orderPos]];
+  const v = queue[pos];
   if (!v) return;
   titleEl.textContent = v.title || v.url;
   audio.src = streamUrl(v.id);
@@ -450,27 +476,28 @@ function playCurrent() {
   markPlaying();
   updateMediaSession(v);
   updatePlayIcon();
+  renderQueue();
 }
 
 function playAudio(v, list) {
   closeVideo();
-  queue = list && list.length ? list.slice() : [v];
-  buildOrder();
-  const qi = Math.max(0, queue.findIndex((x) => x.id === v.id));
-  orderPos = Math.max(0, order.indexOf(qi));
+  baseQueue = list && list.length ? list.slice() : [v];
+  queue = baseQueue.slice();
+  pos = Math.max(0, queue.findIndex((x) => x.id === v.id));
+  if (shuffle) shuffleUpcoming();
   playCurrent();
 }
 
 function playNext() {
   if (!queue.length) return;
-  orderPos = (orderPos + 1) % order.length;
+  pos = (pos + 1) % queue.length;
   playCurrent();
 }
 
 function playPrev() {
   if (!queue.length) return;
   if (audio.currentTime > 3) { audio.currentTime = 0; return; } // restart if well into the song
-  orderPos = (orderPos - 1 + order.length) % order.length;
+  pos = (pos - 1 + queue.length) % queue.length;
   playCurrent();
 }
 
@@ -482,11 +509,156 @@ function closeAudio() {
   player.setAttribute("aria-hidden", "true");
   document.body.classList.remove("player-open");
   queue = [];
-  order = [];
-  orderPos = -1;
+  baseQueue = [];
+  pos = -1;
   currentPlayingId = null;
+  setExpanded(false);
   markPlaying();
   if ("mediaSession" in navigator) navigator.mediaSession.metadata = null;
+}
+
+// ---------- queue panel (expandable "up next" list) ----------
+function setExpanded(on) {
+  playerExpanded = on;
+  player.classList.toggle("expanded", on);
+  expandBtn.classList.toggle("active", on);
+  if (on) renderQueue();
+}
+
+function renderQueue() {
+  if (!playerExpanded) return;
+  const upcoming = queue.slice(pos + 1);
+  pqHead.textContent = upcoming.length ? `Up next · ${upcoming.length}` : "Up next";
+  pqList.innerHTML = "";
+
+  if (!upcoming.length) {
+    const d = document.createElement("div");
+    d.className = "pq-empty";
+    d.textContent = "End of queue — playback loops from the top.";
+    pqList.appendChild(d);
+    return;
+  }
+
+  upcoming.forEach((v, i) => {
+    const idx = pos + 1 + i; // absolute position in `queue`
+    const row = document.createElement("div");
+    row.className = "pq-row";
+    row.dataset.qidx = idx;
+    row.innerHTML = `
+      <span class="pq-num">${i + 1}</span>
+      <button class="pq-btn pq-handle" type="button" aria-label="Drag to reorder">${ICON_DRAG}</button>
+      <div class="pq-info">
+        <div class="pq-title">${escapeHtml(v.title || v.url)}</div>
+        <div class="pq-artist">${escapeHtml(v.artist || "")}</div>
+      </div>
+      <span class="pq-eta"></span>
+      <div class="pq-actions"></div>`;
+
+    // tap the song to jump straight to it
+    row.querySelector(".pq-info").onclick = () => {
+      pos = idx;
+      playCurrent();
+    };
+
+    wireDrag(row, row.querySelector(".pq-handle"));
+
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "pq-btn";
+    del.innerHTML = "&#10005;";
+    del.setAttribute("aria-label", "Remove from queue");
+    del.onclick = () => {
+      queue.splice(idx, 1);
+      baseQueue = baseQueue.filter((s) => s.id !== v.id);
+      renderQueue();
+    };
+    row.querySelector(".pq-actions").appendChild(del);
+
+    pqList.appendChild(row);
+  });
+
+  updateQueueEtas();
+}
+
+// Drag-to-reorder via pointer events (works with both mouse and touch; the
+// handle has touch-action:none so dragging it doesn't scroll the panel).
+function wireDrag(row, handle) {
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    row.classList.add("dragging");
+
+    const move = (ev) => {
+      const others = [...pqList.querySelectorAll(".pq-row:not(.dragging)")];
+      let placed = false;
+      for (const r of others) {
+        const rect = r.getBoundingClientRect();
+        if (ev.clientY < rect.top + rect.height / 2) {
+          pqList.insertBefore(row, r);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) pqList.appendChild(row);
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      row.classList.remove("dragging");
+      commitDomOrder();
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  });
+}
+
+// After a drag, the DOM rows are the source of truth for the new order.
+function commitDomOrder() {
+  const items = [...pqList.querySelectorAll(".pq-row")].map((r) => queue[+r.dataset.qidx]);
+  queue = queue.slice(0, pos + 1).concat(items);
+  renderQueue();
+}
+
+// "plays in ~N min" per upcoming row, from the current song's remaining time
+// plus the durations of everything queued before it. Refreshed on timeupdate.
+function fmtEta(sec) {
+  const m = Math.round(sec / 60);
+  return m < 1 ? "in <1 min" : `in ~${m} min`;
+}
+
+function updateQueueEtas() {
+  if (!playerExpanded || pqList.querySelector(".dragging")) return;
+  const cur = queue[pos];
+  const total = (isFinite(audio.duration) && audio.duration) || (cur && cur.duration) || 0;
+  let acc = Math.max(0, total - (audio.currentTime || 0));
+  pqList.querySelectorAll(".pq-row").forEach((r) => {
+    const span = r.querySelector(".pq-eta");
+    const v = queue[+r.dataset.qidx];
+    if (!span || !v) return;
+    const txt = fmtEta(acc);
+    if (span.textContent !== txt) span.textContent = txt;
+    acc += v.duration || 0;
+  });
+}
+
+audio.addEventListener("timeupdate", updateQueueEtas);
+
+// "+" on a song card: append to the queue (or start playing if idle).
+function addToQueue(v) {
+  if (!queue.length) {
+    playAudio(v, [v]);
+    return;
+  }
+  if (queue.some((x) => x.id === v.id)) {
+    toast("Already in the queue");
+    return;
+  }
+  queue.push(v);
+  baseQueue.push(v);
+  renderQueue();
+  toast(`Added to queue: ${v.title || "song"}`);
 }
 
 prevBtn.innerHTML = ICON_PREV;
@@ -501,17 +673,20 @@ shuffleBtn.onclick = () => {
   shuffle = !shuffle;
   shuffleBtn.classList.toggle("active", shuffle);
   if (queue.length) {
-    const currentQi = order[orderPos]; // keep the current song current across reshuffle
-    buildOrder();
-    orderPos = Math.max(0, order.indexOf(currentQi));
+    if (shuffle) shuffleUpcoming();   // current song stays; upcoming reshuffles
+    else restoreUpcoming();           // back to the original order
+    renderQueue();
   }
 };
+
+expandBtn.innerHTML = ICON_CHEV_UP;
+expandBtn.onclick = () => setExpanded(!playerExpanded);
 
 audio.addEventListener("play", updatePlayIcon);
 audio.addEventListener("pause", updatePlayIcon);
 audio.addEventListener("playing", () => { errorStreak = 0; });
 audio.addEventListener("ended", () => {
-  if (order.length > 1) playNext(); // auto-advance through the queue
+  if (queue.length > 1) playNext(); // auto-advance through the queue
   else updatePlayIcon();
 });
 
@@ -520,9 +695,9 @@ audio.addEventListener("ended", () => {
 audio.addEventListener("error", () => {
   if (!audio.getAttribute("src") || player.classList.contains("hidden")) return;
   errorStreak++;
-  const v = queue[order[orderPos]];
+  const v = queue[pos];
   const name = v ? (v.title || v.url) : "track";
-  if (order.length > 1 && errorStreak < order.length) {
+  if (queue.length > 1 && errorStreak < queue.length) {
     toast(`Can't play “${name}” — skipping`, "error");
     playNext();
   } else {
@@ -561,6 +736,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   if (!modal.classList.contains("hidden")) closeVideo();
   else if (!addModal.classList.contains("hidden")) closeAddSongs();
+  else if (playerExpanded) setExpanded(false);
 });
 
 // ---------- search + music modes ----------
