@@ -19,15 +19,26 @@ and you can save the result back to your phone — all over your private
 ## Features
 
 - **Paste & download** — submit a YouTube URL; the VM downloads it in the
-  background and shows live progress.
+  background and shows live progress and your place in the queue.
+- **Playlist downloads** — a playlist URL downloads every video as its own
+  item; for a video inside a playlist you choose "just this video" or "entire
+  playlist". Playlists downloaded as Music become a playlist in the gallery.
 - **Categories** — file each link as **Video**, **Music**, or **Podcast**.
   Video is full video (`bestvideo + bestaudio`, merged to MP4); Music and
   Podcast are fetched **audio-only** and saved as MP3.
-- **Gallery** — a second page with a thumbnail grid, one tab per category.
-  YouTube thumbnails are downloaded and shown for each item.
+- **Gallery** — a thumbnail grid with one tab per category (red / green /
+  blue) and search. YouTube thumbnails are downloaded for each item.
+- **Stream in the browser** — videos play in a pop-up player; music and
+  podcasts play in a bottom bar that keeps playing when you switch views.
+- **Music library** — "All Songs" groups songs by artist (most-viewed first);
+  "Playlists" lets you create, rename and fill your own playlists.
+- **Player** — plays through the row you started from, with shuffle,
+  next/previous, and an expandable "Up next" queue you can reorder by drag and
+  drop; the **+** on a song card adds it to the queue.
 - **25 GB cap, FIFO** — when the store is full, the oldest items are deleted
   automatically to make room.
 - **Save to phone** — one tap downloads the file through the browser.
+- **Light / dark mode** — toggle in the top bar, remembered per device.
 - **No app store** — it's a PWA; "Add to Home screen" makes it feel native.
 - **Private by default** — reachable only over your tailnet; optional token.
 - **One-tap yt-dlp update** — an Update link in the header upgrades yt-dlp and
@@ -46,7 +57,7 @@ myYouTube/
 ├── docker-compose.yml      # one service; mounts ./media (25 GB) and ./state
 ├── .env.example            # copy to .env and edit
 └── server/
-    ├── Dockerfile          # python + ffmpeg + yt-dlp
+    ├── Dockerfile          # python + ffmpeg + deno + yt-dlp
     ├── requirements.txt
     ├── app/                # FastAPI backend
     │   ├── main.py         # routes + serves the PWA
@@ -108,8 +119,9 @@ that behind a firewall you trust.
 4. Pick a category (**Video / Music / Podcast**), paste a YouTube URL, and hit
    **Download**. Watch progress on the landing page.
 5. Open **Gallery** (top-right link) to browse finished items by category with
-   thumbnails, and tap **Save** to pull a file onto your phone. Music keeps
-   playing when you switch back to the download view.
+   thumbnails. Tap **Stream** to play in the browser, or **Download** to pull
+   the file onto your phone. Music keeps playing when you switch back to the
+   download view.
 
 ## Configuration (`.env`)
 
@@ -125,8 +137,15 @@ that behind a firewall you trust.
 
 ## Notes & limits
 
-- **One video per URL.** Playlists are not expanded (`noplaylist`); only the
-  referenced video is fetched.
+- **YouTube needs a JavaScript runtime.** yt-dlp solves YouTube's JavaScript
+  challenges with the `yt-dlp-ejs` package and Deno; both ship in the image
+  (`yt-dlp[default]` and `/usr/local/bin/deno`). The container log shows the
+  Deno version on start.
+- **"Sign in to confirm you're not a bot".** YouTube sometimes blocks
+  downloads that don't come from a signed-in browser. Tap **Update** to get
+  the latest yt-dlp, then **Retry**. Login cookies are not supported yet.
+- **Large playlists and the cap.** Every playlist entry is its own download,
+  so a big playlist can push older items out of the 25 GB budget.
 - **Best quality eats space.** With `MAX_BYTES=25G`, a few 4K videos can fill
   the budget and trigger FIFO eviction of older ones. Lower `YTDLP_FORMAT`
   (e.g. `bestvideo[height<=1080]+bestaudio/best`) if you want more headroom.

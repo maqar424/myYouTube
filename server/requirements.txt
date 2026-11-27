@@ -1,6 +1,8 @@
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
+fastapi==0.165.0
+uvicorn[standard]==0.54.0
 # Unpinned on purpose: YouTube changes often and yt-dlp must stay current.
-# Update with: docker compose exec myyoutube pip install -U yt-dlp && docker compose restart
+# [default] pulls in yt-dlp-ejs, which (with Deno, installed in the Dockerfile)
+# solves YouTube's JavaScript challenges. Keep it updated together with yt-dlp.
+# Update with: docker compose exec myyoutube pip install -U "yt-dlp[default]" && docker compose restart
 # Or force a fresh copy on rebuild: docker compose build --no-cache
-yt-dlp
+yt-dlp[default]
